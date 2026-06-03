@@ -1,0 +1,14 @@
+.icon-block {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 9999px;
+    width: 39.79px;
+    height: 39.79px;
+}
+
+svg {
+    width: 19.14px;
+    height: 25.33px;
+    color: rgba(255, 255, 255, 1);
+}

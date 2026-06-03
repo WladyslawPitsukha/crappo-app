@@ -1,0 +1,35 @@
+input {
+    background: transparent;
+    border-bottom: 1px solid rgb(255, 255, 255);
+    padding-bottom: 7px;
+    width: 374px;
+}
+
+input::-moz-placeholder {
+    color: rgb(255, 255, 255);
+}
+
+input::placeholder {
+    color: rgb(255, 255, 255);
+}
+
+input:focus {
+    border: none;
+    background: transparent;
+}
+
+.bg-custom {
+    background-color: rgba(53, 6, 140, 1);
+}
+
+.inputButHover:hover {
+    background-color: blue;
+}
+
+.inputButHover:hover p {
+    color: white;
+}
+
+.inputButHover {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}

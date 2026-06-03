@@ -1,0 +1,39 @@
+.bitcoin-page .text-center {
+  text-align: center;
+}
+.bitcoin-page h1 {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #ffffff;
+  margin-bottom: 2rem;
+}
+.bitcoin-page section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+.bitcoin-page section.history-section, .bitcoin-page section.usage-section, .bitcoin-page section.future-section {
+  padding: 2rem;
+  background-color: #1f2937;
+  border-radius: 0.5rem;
+  margin-bottom: 2rem;
+}
+.bitcoin-page section.history-section h2, .bitcoin-page section.usage-section h2, .bitcoin-page section.future-section h2 {
+  font-size: 1.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 1rem;
+}
+.bitcoin-page section.history-section p, .bitcoin-page section.usage-section p, .bitcoin-page section.future-section p {
+  color: #d1d5db;
+}
+.bitcoin-page .flex {
+  display: flex;
+}
+.bitcoin-page .justify-around {
+  justify-content: space-around;
+}
+.bitcoin-page .w-full {
+  width: 100%;
+}/*# sourceMappingURL=coinPage.css.map */
