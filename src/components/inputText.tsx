@@ -1,24 +1,32 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { CriptoArrayItems } from '@/types/CriptoArrayItems';
+import { CoinMarketData } from '@/utils/coinGecko';
 
-const InputText: React.FC<CriptoArrayItems> = ({ icon, color, short, title, price, change, volume }): JSX.Element => {
-    const [priceValue, setPriceValue] = useState<string>("");
-    const [changeValue, setChangeValue] = useState<string>("");
-    const [volumeValue, setVolumeValue] = useState<string>("");
+type InputTextProps = CriptoArrayItems & {
+    marketData?: CoinMarketData;
+};
 
-    useEffect(() => {
-        const fetchData = async () => {
-            const priceResult = await price();
-            const changeResult = await change();
-            const volumeResult = await volume();
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+});
 
-            setPriceValue(`$${priceResult}`);
-            setChangeValue(`${changeResult}%`);
-            setVolumeValue(`$${volumeResult}`);
-        }
+const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 2,
+});
 
-        fetchData();
-    }, [price, change, volume]);
+const InputText: React.FC<InputTextProps> = ({ icon, color, short, title, marketData }): JSX.Element => {
+    const values = marketData
+        ? [
+            currencyFormatter.format(marketData.price),
+            `${marketData.change24h >= 0 ? "+" : ""}${marketData.change24h.toFixed(2)}%`,
+            compactCurrencyFormatter.format(marketData.volume24h),
+        ]
+        : ["-", "-", "-"];
     
     return (
         <div className='table-row'>
@@ -35,7 +43,7 @@ const InputText: React.FC<CriptoArrayItems> = ({ icon, color, short, title, pric
                     </h3>
                 </div>
             </div>
-            {[priceValue, changeValue, volumeValue].map((value, index) => (
+            {values.map((value, index) => (
                 <div className='table-cell' key={index}>
                     <h5 className='font-inter text-lg font-normal leading-relaxed text-left text-gray-300'>
                         {value}
