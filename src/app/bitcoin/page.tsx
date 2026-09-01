@@ -4,7 +4,7 @@ import React from 'react';
 import InfoPage from "@/components/infoPage";
 import { infaBitcoin } from '@/types/TypeInfaSect';
 import NavBar from '@/components/navBar';
-import Footer from '@/components/footer';
+import Footer from '@/components/Footer';
 
 const BitcoinPage: React.FC = () => {
     return(

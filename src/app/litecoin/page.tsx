@@ -2,7 +2,7 @@
 
 import InfoPage from "@/components/infoPage";
 import "../../style/coinPage.css";
-import Footer from "@/components/footer";
+import Footer from "@/components/Footer";
 import NavBar from "@/components/navBar";
 import { infaLitecoin } from "@/types/TypeInfaSect";
 
