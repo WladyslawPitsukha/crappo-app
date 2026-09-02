@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useBitcoinChart } from "@/utils/useBitcoinChart";
 
 const BitcoinGraf = () => {
-    const { bitcoinData, chartRef, fetchData, renderChart } = useBitcoinChart();
+    const { bitcoinData, chartRef, error, fetchData, renderChart, status } = useBitcoinChart();
 
     useEffect(() => {
         fetchData().then(() => {
@@ -35,7 +35,7 @@ const BitcoinGraf = () => {
                                 </h6>
                             </div>
                             <p className="font-inter text-p font-p leading-[16.94px] tracking-[0.01em] text-gray-300">
-                                {bitcoinData.length > 0 ? `${currentPrice.toFixed(2)} BTC` : 'Loading...'}
+                                {bitcoinData.length > 0 ? `$${currentPrice.toFixed(2)}` : 'Loading...'}
                             </p>
                         </div>
                     </div>
@@ -43,7 +43,9 @@ const BitcoinGraf = () => {
                         {bitcoinData.length > 0 ? `${percentageChange}%` : ''}
                     </h5>
                 </div>
-                <div ref={chartRef} className="w-full h-[80%]"></div>
+                <div ref={chartRef} className="w-full h-[80%]" aria-label="Bitcoin price chart" role="img"></div>
+                {status === "loading" && <p className="text-sm text-gray-200" role="status">Loading live Bitcoin data...</p>}
+                {error && <p className="text-sm text-red-200" role="alert">{error}</p>}
             </div>
             <div className="flex flex-col py-6 px-4 items-start rounded-2xl gap-4 shadow-lg bg-purple-700 absolute bottom-4 left-16 z-10 h-[184px] w-[178px]">
                 <h3 className="font-inter text-lg font-semibold leading-7 tracking-tight text-left text-white">

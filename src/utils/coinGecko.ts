@@ -21,19 +21,20 @@ export class CoinGeckoError extends Error {
 }
 
 const coinIds: CoinId[] = ["bitcoin", "ethereum", "litecoin"];
+const MARKET_DATA_URL = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,litecoin&price_change_percentage=24h";
+const MARKET_DATA_CACHE_TTL_MS = 60_000;
 
-export async function getCoinMarketData(signal?: AbortSignal): Promise<Record<CoinId, CoinMarketData>> {
+let cachedMarketData: { data: Record<CoinId, CoinMarketData>; expiresAt: number } | null = null;
+let marketDataRequest: Promise<Record<CoinId, CoinMarketData>> | null = null;
+
+async function requestCoinMarketData(): Promise<Record<CoinId, CoinMarketData>> {
     const timeoutSignal = AbortSignal.timeout(8_000);
-    const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
     let response: Response;
 
     try {
-        response = await fetch(
-            "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,litecoin&price_change_percentage=24h",
-            { signal: requestSignal, next: { revalidate: 60 } },
-        );
+        response = await fetch(MARKET_DATA_URL, { signal: timeoutSignal, next: { revalidate: 60 } });
     } catch (error) {
-        if (timeoutSignal.aborted && !signal?.aborted) {
+        if (timeoutSignal.aborted) {
             throw new CoinGeckoError("Market data request timed out. Please try again.", "timeout");
         }
 
@@ -63,6 +64,36 @@ export async function getCoinMarketData(signal?: AbortSignal): Promise<Record<Co
             change24h: coin.price_change_percentage_24h,
             volume24h: coin.total_volume,
         };
+    }
+
+    return marketData;
+}
+
+export async function getCoinMarketData(signal?: AbortSignal): Promise<Record<CoinId, CoinMarketData>> {
+    if (signal?.aborted) {
+        throw new DOMException("The request was aborted.", "AbortError");
+    }
+
+    if (cachedMarketData && cachedMarketData.expiresAt > Date.now()) {
+        return cachedMarketData.data;
+    }
+
+    marketDataRequest ??= requestCoinMarketData()
+        .then((marketData) => {
+            cachedMarketData = {
+                data: marketData,
+                expiresAt: Date.now() + MARKET_DATA_CACHE_TTL_MS,
+            };
+            return marketData;
+        })
+        .finally(() => {
+            marketDataRequest = null;
+        });
+
+    const marketData = await marketDataRequest;
+
+    if (signal?.aborted) {
+        throw new DOMException("The request was aborted.", "AbortError");
     }
 
     return marketData;

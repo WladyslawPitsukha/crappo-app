@@ -1,35 +1,45 @@
-import { useState, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import * as echarts from 'echarts';
-import { FetchBitcoinData } from "@/utils/FetchBitcoinData";
-
-interface ApiBitcoinData {
-    bitcoin: {
-        usd: number;
-    };
-}
+import { CoinGeckoError, getCoinMarketData } from "@/utils/coinGecko";
 
 interface BitcoinData {
     time: string;
     price: number;
 }
 
+export type BitcoinMarketStatus = "idle" | "loading" | "ready" | "error" | "rate-limited";
+
 export const useBitcoinChart = () => {
     const [bitcoinData, setBitcoinData] = useState<BitcoinData[]>([]);
+    const [status, setStatus] = useState<BitcoinMarketStatus>("idle");
+    const [error, setError] = useState<string | null>(null);
     const chartRef = useRef<HTMLDivElement>(null);
 
-    const fetchData = async () => {
-        const data: ApiBitcoinData | null = await FetchBitcoinData();
-        if (data) {
+    const fetchData = useCallback(async () => {
+        try {
+            setStatus("loading");
+            setError(null);
+            const marketData = await getCoinMarketData();
             const currentTime = new Date().toLocaleTimeString('en-GB', {
                 hour: '2-digit',
                 minute: '2-digit',
             });
             setBitcoinData((prevData) => [
                 ...prevData,
-                { time: currentTime, price: data.bitcoin.usd },
+                { time: currentTime, price: marketData.bitcoin.price },
             ]);
+            setStatus("ready");
+        } catch (loadError) {
+            if (loadError instanceof CoinGeckoError) {
+                setError(loadError.message);
+                setStatus(loadError.kind === "rate-limit" ? "rate-limited" : "error");
+                return;
+            }
+
+            setError("Unable to load Bitcoin market data. Please try again.");
+            setStatus("error");
         }
-    };
+    }, []);
 
     const renderChart = () => {
         if (chartRef.current && bitcoinData.length > 0) {
@@ -63,5 +73,5 @@ export const useBitcoinChart = () => {
         }
     };
 
-    return { bitcoinData, chartRef, fetchData, renderChart };
+    return { bitcoinData, chartRef, error, fetchData, renderChart, status };
 };
