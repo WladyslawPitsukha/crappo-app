@@ -36,8 +36,8 @@ export const Button: React.FC<ButtonProps> = ({ text }) => {
 
 export default function WhyCrappo() {
     return (
-        <section id="About" className="flex flex-col gap-24">
-            <article className="flex justify-between w-auto h-92">
+        <section id="About" className="mx-auto flex max-w-7xl flex-col gap-16 lg:gap-24">
+            <article className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {numsArray.map((obj, index) => {
                     const IconComponent = obj.icon as IconType;
                     return(
@@ -60,10 +60,10 @@ export default function WhyCrappo() {
                     )
                 })}
             </article>
-            <article className="flex justify-evenly items-center gap-16">
-                <Image alt="Picture" className="w-650 h-473" src={Img} />
-                <div className="flex flex-col items-start justify-between gap-6 w-96">
-                    <h2 className="w text-4xl font-bold leading-20 text-left text-white">Why you should choose CRAPPO</h2>
+            <article className="flex flex-col items-center gap-10 lg:flex-row lg:justify-evenly lg:gap-16">
+                <Image alt="Picture" className="h-auto w-full max-w-2xl" src={Img} />
+                <div className="flex max-w-md flex-col items-start justify-between gap-6">
+                    <h2 className="text-3xl font-bold leading-tight text-left text-white sm:text-4xl">Why you should choose CRAPPO</h2>
                     <p className="font-rubik text-base font-normal leading-7 tracking-tighter text-left text-gray-300">
                         Experience the next generation cryptocurrency platform. No financial borders, extra fees, and fake reviews.
                     </p>

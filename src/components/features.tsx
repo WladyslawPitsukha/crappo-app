@@ -7,23 +7,23 @@ const GrowProfit = lazy(() => import("./growProfit"));
 
 const Features = () => {
     return (
-        <section id='Features' className="flex flex-col items-center gap-25 bg-gradient-to-b from-purple-900 to-purple-800">
-            <h1 className="w-[758px] font-rubik text-4xl font-bold leading-60 text-center text-white mb-24">
+        <section id='Features' className="flex flex-col items-center gap-16 bg-gradient-to-b from-purple-900 to-purple-800 lg:gap-24">
+            <h2 className="max-w-3xl font-rubik text-3xl font-bold leading-tight text-center text-white sm:text-4xl">
                 Market sentiments, portfolio, and run the infrastructure of your choice
-            </h1>
-            <article className="flex items-start justify-evenly mt-24">
+            </h2>
+            <article className="flex w-full max-w-7xl flex-col items-center gap-10 lg:flex-row lg:items-start lg:justify-evenly">
                 <Description id={1} title="" desc="" link="" />
                 <Suspense fallback={<div>Loading BitcoinGraf...</div>}>
                     <BitcoinGraf />
                 </Suspense>
             </article>
-            <article className="flex mt-5 gap-24">
+            <article className="flex w-full max-w-7xl flex-col items-center gap-10 lg:flex-row lg:gap-16">
                 <Suspense fallback={<div>Loading Sealbitcoin</div>}>
                     <Sealsbitcoin />
                 </Suspense>
                 <Description id={2} title="" desc="" link="" />
             </article>
-            <article className="flex mt-5 gap-24">
+            <article className="flex w-full max-w-7xl flex-col items-center gap-10 lg:flex-row lg:gap-16">
                 <Description id={3} title="" desc="" link="" />
                 <Suspense fallback={<div>Loading GrowProfit...</div>}>
                     <GrowProfit />

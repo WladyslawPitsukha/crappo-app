@@ -5,17 +5,17 @@ import BitcoinIcon from "../assets/img/bitcoinIcon.png"
 
 function StartMining() {
     return(
-        <section id="Contact" className="flex flex-col justify-center items-center bg-gradient-to-b from-purple-800 to-rgba-13-13-43-1">
-            <div className="flex items-center justify-between bg-blue-500 rounded-lg p-12 relative overflow-hidden gap-12">
-                <article className="flex flex-col items-start gap-4">
-                    <h3 className="font-rubik text-white text-3xl font-bold leading-12 text-left">
+        <section id="Contact" className="flex flex-col items-center justify-center bg-gradient-to-b from-purple-800 to-rgba-13-13-43-1">
+            <div className="relative flex w-full max-w-6xl flex-col gap-8 overflow-hidden rounded-lg bg-blue-500 p-6 sm:p-10 lg:flex-row lg:items-center lg:justify-between lg:gap-12 lg:p-12">
+                <article className="z-10 flex max-w-md flex-col items-start gap-4">
+                    <h3 className="font-rubik text-3xl font-bold leading-tight text-left text-white">
                         Start mining now
                     </h3>
-                    <p className="text-white text-base font-normal leading-7 tracking-tighter text-left w-[348px]">
+                    <p className="text-base font-normal leading-7 text-left text-white">
                         Join now with CRAPPO to get the latest news and start mining now
                     </p>
                 </article>
-                <FormMining />
+                <div className="z-10 w-full lg:w-auto"><FormMining /></div>
                 <Image 
                     src={Square} 
                     alt="square" 

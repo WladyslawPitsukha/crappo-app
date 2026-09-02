@@ -6,12 +6,25 @@ body {
     background-color: rgba(13, 13, 43, 1);
 }
 
-nav {
-    background-color: rgba(13, 13, 43, 1);
+html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 88px;
 }
 
-header, section, footer {
-    padding: 60px 120px 80px;
+main > section, footer {
+    padding: 48px 20px 64px;
+}
+
+@media (min-width: 768px) {
+    main > section, footer {
+        padding: 60px 48px 72px;
+    }
+}
+
+@media (min-width: 1280px) {
+    main > section, footer {
+        padding: 60px 120px 80px;
+    }
 }
 
 h1, h2, h3, h4, h5, h6, p {

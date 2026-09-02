@@ -9,8 +9,8 @@ const Description: React.FC<DescProps> = ({id}) => {
     }
 
     return (
-        <div className="flex flex-col items-start mt-10">
-            <h2 className="text-4xl font-bold leading-[48px] text-left text-white w-[454px]">
+        <div className="mt-10 flex w-full max-w-md flex-col items-start">
+            <h2 className="text-3xl font-bold leading-tight text-left text-white sm:text-4xl">
                 {item.title}
             </h2>
             <p className="text-base font-normal leading-[28px] tracking-[0.01em] text-left text-gray-300 mt-4 w-auto">

@@ -4,19 +4,19 @@ import { CriptoCard } from "./criptoCard";
 const  TradeSecurely = () => {
     return (
         <section id="Products" className="flex flex-col items-center bg-neutral-light p-0">
-            <article className="flex flex-col items-center justify-center bg-[rgba(13, 13, 43, 1)] my-10 gap-6">
-                <h2 className="text-center text-white text-4xl font-bold leading-60">
+            <article className="my-10 flex max-w-3xl flex-col items-center justify-center gap-6 bg-[rgba(13,13,43,1)]">
+                <h2 className="text-center text-3xl font-bold leading-tight text-white sm:text-4xl">
                     Check how much you can earn
                 </h2>
                 <p className="text-center text-gray-300 text-lg font-normal leading-7 w-3/4">
                     Let’s check your hash rate to see how much you will earn today, Exercitation veniam consequat sunt nostrud amet.
                 </p>
             </article>
-            <article className="mt-10 pb-24 flex flex-col gap-16 w-full bg-gradient-to-b from-gray-200 to-gray-100">
-                <h3 className="text-center text-primary text-4xl font-bold leading-60 w-3/4 mt-10 my-0 mx-auto">
+            <article className="mt-10 flex w-full flex-col gap-12 bg-gradient-to-b from-gray-200 to-gray-100 pb-16 sm:gap-16 sm:pb-24">
+                <h3 className="mx-auto mt-10 w-full max-w-3xl text-center text-3xl font-bold leading-tight text-primary sm:text-4xl">
                     Trade securely and market the high growth cryptocurrencies.
                 </h3>
-                <div className="flex flex-wrap justify-around gap-[45px]">
+                <div className="flex flex-wrap justify-center gap-8 lg:gap-12">
                     {criptoCardArray.map((obj, index) => (
                         <CriptoCard
                             id={obj.id}

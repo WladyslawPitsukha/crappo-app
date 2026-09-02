@@ -1,29 +1,23 @@
 export type PropsNavBar = {
     title: string;
-    onClick: () => any;
-}
-
-export function SectionScroll(id: string) {
-    const section = document.getElementById(id);
-
-    section?.scrollIntoView({behavior: 'smooth'});
+    href: string;
 }
 
 export const propsNavBar: PropsNavBar[] = [
     {
         title: "Products",
-        onClick: () => SectionScroll("Products")
+        href: "/#Products",
     },
     {
         title: "Features",
-        onClick: () => SectionScroll("Features")
+        href: "/#Features",
     },
     {
         title: "About",
-        onClick: () => SectionScroll("About")
+        href: "/#About",
     },
     {
         title: "Contact",
-        onClick: () => SectionScroll("Contact")
+        href: "/#Contact",
     },
 ];

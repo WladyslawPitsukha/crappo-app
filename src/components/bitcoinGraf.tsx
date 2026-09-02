@@ -1,27 +1,15 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { useBitcoinChart } from "@/utils/useBitcoinChart";
 
 const BitcoinGraf = () => {
-    const { bitcoinData, chartRef, error, fetchData, renderChart, status } = useBitcoinChart();
-
-    useEffect(() => {
-        fetchData().then(() => {
-            renderChart();
-        });
-        const intervalId = setInterval(async () => {
-            await fetchData();
-            renderChart();
-        }, 3600000);
-
-        return () => clearInterval(intervalId);
-    }, [fetchData, renderChart]);
+    const { bitcoinData, chartRef, error, status } = useBitcoinChart();
 
     const currentPrice = bitcoinData.length > 0 ? bitcoinData[bitcoinData.length - 1].price : 0;
     const percentageChange = ((currentPrice - 20000) / 20000 * 100).toFixed(2);
 
     return (
-        <div className="relative w-[580px] h-[427px] ml-24">
-            <div className="flex flex-col bg-blue-800 rounded-2xl w-[580px] h-[298px] absolute top-0 left-0 p-10">
+        <div className="relative flex w-full max-w-[580px] flex-col gap-4 lg:h-[427px] lg:block">
+            <div className="flex min-h-[298px] w-full flex-col rounded-2xl bg-blue-800 p-6 sm:p-10 lg:absolute lg:left-0 lg:top-0">
                 <div className="flex justify-between items-center">
                     <div className="flex items-start gap-4">
                         <div></div>
@@ -47,7 +35,7 @@ const BitcoinGraf = () => {
                 {status === "loading" && <p className="text-sm text-gray-200" role="status">Loading live Bitcoin data...</p>}
                 {error && <p className="text-sm text-red-200" role="alert">{error}</p>}
             </div>
-            <div className="flex flex-col py-6 px-4 items-start rounded-2xl gap-4 shadow-lg bg-purple-700 absolute bottom-4 left-16 z-10 h-[184px] w-[178px]">
+            <div className="z-10 flex h-[184px] w-full flex-col items-start gap-4 rounded-2xl bg-purple-700 px-4 py-6 shadow-lg sm:w-[178px] lg:absolute lg:bottom-4 lg:left-16">
                 <h3 className="font-inter text-lg font-semibold leading-7 tracking-tight text-left text-white">
                     Increase in Trade
                 </h3>
@@ -58,7 +46,7 @@ const BitcoinGraf = () => {
                     Sell option
                 </h6>
             </div>
-            <div className="flex flex-col gap-1 py-4 px-8 justify-center items-center rounded-2xl shadow-lg bg-purple-700 absolute bottom-20 right-10 z-10 h-[84px] w-[169px]">
+            <div className="z-10 flex h-[84px] w-full flex-col items-center justify-center gap-1 rounded-2xl bg-purple-700 px-8 py-4 shadow-lg sm:w-[169px] lg:absolute lg:bottom-20 lg:right-10">
                 <h2 className="font-inter text-xl font-bold leading-7 tracking-tight text-center text-white">
                     ${currentPrice.toFixed(2)}
                 </h2>
