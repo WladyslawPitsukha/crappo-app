@@ -1,7 +1,8 @@
 import { descArray, DescProps } from "@/types/DescProps";
-import '../style/hoverAnima.css'
+import Link from "next/link";
+import '../style/hoveranima.css'
 
-const Description: React.FC<DescProps> = ({id}) => {
+const Description: React.FC<DescProps> = ({ id }) => {
     const item = descArray.find(item => item.id === id);
 
     if(!item) {
@@ -16,14 +17,14 @@ const Description: React.FC<DescProps> = ({id}) => {
             <p className="text-base font-normal leading-[28px] tracking-[0.01em] text-left text-gray-300 mt-4 w-auto">
                 {item.desc}
             </p>
-            <button
+            <Link
                 className="custom-button bg-blue-500 text-white mt-4 rounded-full px-8 py-4 hoverButton"
-                onClick={() => {}}
+                href={item.link}
             >
                 <h6 className="font-rubik text-lg font-medium leading-[27px] text-center">
                     Learn More
                 </h6>
-            </button>
+            </Link>
         </div>
     )
 }

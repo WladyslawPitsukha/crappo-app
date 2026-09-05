@@ -1,23 +1,39 @@
+"use client";
+
 import React, { useState } from "react";
 import '../style/inputText.css';
 
 export default function FormMining() {
     const [email, setEmail] = useState('');
+    const [message, setMessage] = useState('');
+    const [hasError, setHasError] = useState(false);
 
     const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setEmail(e.target.value)
+        setEmail(e.target.value);
+        setMessage('');
+        setHasError(false);
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
-        setEmail('')
+        if (!email.trim() || !e.currentTarget.checkValidity()) {
+            setMessage('Enter a valid email address.');
+            setHasError(true);
+            return;
+        }
+
+        setEmail('');
+        setMessage('Thanks, you are on the list.');
+        setHasError(false);
     }
 
     return(
         <form onSubmit={handleSubmit} className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 lg:w-auto">
             <input 
-                type="text"
+                aria-describedby="mining-form-message"
+                required
+                type="email"
                 value={email}
                 onChange={handleEmailChange}
                 className="h-14 w-full border-b border-white bg-transparent px-1 text-white outline-none placeholder:text-white/75 focus-visible:ring-2 focus-visible:ring-white sm:min-w-64"
@@ -31,6 +47,15 @@ export default function FormMining() {
                     Subscribe
                 </p>
             </button>
+            {message && (
+                <p
+                    className={hasError ? "text-sm text-red-100" : "text-sm text-white"}
+                    id="mining-form-message"
+                    role={hasError ? "alert" : "status"}
+                >
+                    {message}
+                </p>
+            )}
         </form>
     )
 }
