@@ -1,11 +1,13 @@
 import Image from "next/image";
+import Link from "next/link";
 import Img from "../assets/img/Illustrations.png";
 import { IoPerson, IoBarChart, IoEarthSharp } from "react-icons/io5";
 import { IconType } from "react-icons";
-import '../style/hoverAnima.css'
+import '../style/hoveranima.css'
 
 interface ButtonProps {
     text: string;
+    href: string;
 }
 
 export const numsArray = [
@@ -26,11 +28,11 @@ export const numsArray = [
     }
 ]
 
-export const Button: React.FC<ButtonProps> = ({ text }) => {
+export const Button: React.FC<ButtonProps> = ({ text, href }) => {
     return (
-        <button className="w-auto h-auto p-4 gap-6 rounded-3xl bg-blue-500 hoverButton">
+        <Link className="w-auto h-auto rounded-3xl bg-blue-500 p-4 hoverButton" href={href}>
             <h6 className="text-base font-medium leading-27 text-center text-white">{text}</h6>
-        </button>
+        </Link>
     );
 };
 
@@ -48,10 +50,12 @@ export default function WhyCrappo() {
                             <div className="flex justify-center items-center w-20 h-20 rounded-full bg-white bg-opacity-10">
                                 <IconComponent className="w-12 h-12 z-10 text-[#3671E9]" />
                             </div>
+
                             <div className="flex flex-col items-start gap-1">
                                 <h4 className="text-white text-left text-[40px] font-bold leading-[60px]">
                                     {obj.number}
                                 </h4>
+
                                 <p className="ext-base font-normal leading-7 tracking-tight text-left text-gray-200">
                                     {obj.text}
                                 </p>
@@ -60,14 +64,17 @@ export default function WhyCrappo() {
                     )
                 })}
             </article>
+
             <article className="flex flex-col items-center gap-10 lg:flex-row lg:justify-evenly lg:gap-16">
                 <Image alt="Picture" className="h-auto w-full max-w-2xl" src={Img} />
+                
                 <div className="flex max-w-md flex-col items-start justify-between gap-6">
                     <h2 className="text-3xl font-bold leading-tight text-left text-white sm:text-4xl">Why you should choose CRAPPO</h2>
                     <p className="font-rubik text-base font-normal leading-7 tracking-tighter text-left text-gray-300">
                         Experience the next generation cryptocurrency platform. No financial borders, extra fees, and fake reviews.
                     </p>
-                    <Button text="Learn more" />
+
+                    <Button href="/#Products" text="Learn more" />
                 </div>
             </article>
         </section>
