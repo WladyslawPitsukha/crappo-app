@@ -1,6 +1,6 @@
 'use client'
 
-import '../style/hoverAnima.css'
+import '../style/hoveranima.css'
 import Link from "next/link";
 import { useState } from "react";
 import { FaBars, FaTimes } from "react-icons/fa";

@@ -1,6 +1,6 @@
 import { propsNavBar } from '@/types/PropsNavBar';
 import Link from 'next/link';
-import '../style/hoverAnima.css'
+import '../style/hoveranima.css'
 
 function QuickLinks () {
     const arrayLinks = [
