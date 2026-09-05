@@ -1,6 +1,6 @@
 import { CriptoCardProps } from "@/types/CriptoCardProps";
 import ButtonCripto from "./buttonCripto";
-import '../style/hoverAnima.css';
+import '../style/hoveranima.css';
 
 export const CriptoCard: React.FC<CriptoCardProps> = ({ id, img: ImgComponent, title, text, symbol, link }) => {
     const getColor = (id: number) => {
