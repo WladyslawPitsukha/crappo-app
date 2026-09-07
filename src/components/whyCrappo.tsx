@@ -66,7 +66,7 @@ export default function WhyCrappo() {
             </article>
 
             <article className="flex flex-col items-center gap-10 lg:flex-row lg:justify-evenly lg:gap-16">
-                <Image alt="Picture" className="h-auto w-full max-w-2xl" src={Img} />
+                <Image alt="Illustration of the CRAPPO cryptocurrency platform" className="h-auto w-full max-w-2xl" src={Img} />
                 
                 <div className="flex max-w-md flex-col items-start justify-between gap-6">
                     <h2 className="text-3xl font-bold leading-tight text-left text-white sm:text-4xl">Why you should choose CRAPPO</h2>

@@ -13,15 +13,13 @@ const tableHeaders = ["", "Price", "Change", "Volume(24h)"];
 
 function MarketTableHeader() {
     return (
-        <div className="table-row">
+        <tr>
             {tableHeaders.map((item, index) => (
-                <div className="table-cell" key={`${item}-${index}`}>
-                    <h5 className="font-inter text-base font-semibold leading-tight text-left text-white">
-                        {item}
-                    </h5>
-                </div>
+                <th key={`${item}-${index}`} className="pb-2 text-left font-inter text-base font-semibold leading-tight text-white">
+                    {item}
+                </th>
             ))}
-        </div>
+        </tr>
     );
 }
 
@@ -112,9 +110,15 @@ const GrowProfit: React.FC = () => {
     }, [requestNumber]);
 
     return (
-        <div className="bg-custom table w-full rounded-lg p-10" aria-live="polite">
-            <MarketTableHeader />
-            <MarketTableRows marketData={marketData} />
+        <div className="bg-custom w-full rounded-lg p-10" aria-live="polite">
+            <table className="w-full border-separate border-spacing-y-2 text-left">
+                <thead>
+                    <MarketTableHeader />
+                </thead>
+                <tbody>
+                    <MarketTableRows marketData={marketData} />
+                </tbody>
+            </table>
             <MarketStatusMessage status={status} />
             <MarketErrorState
                 error={error}

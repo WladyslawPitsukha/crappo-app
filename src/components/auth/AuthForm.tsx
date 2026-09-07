@@ -45,6 +45,8 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
                     <div>
                         <label className="block text-sm font-medium" htmlFor="email">Email</label>
                         <input
+                            aria-invalid={Boolean(error && !email)}
+                            aria-describedby={error ? "auth-form-error" : undefined}
                             className="mt-1 w-full rounded border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
                             id="email"
                             name="email"
@@ -58,6 +60,8 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
                     <div>
                         <label className="block text-sm font-medium" htmlFor="password">Password</label>
                         <input
+                            aria-invalid={Boolean(error && password.length > 0)}
+                            aria-describedby={error ? "auth-form-error" : undefined}
                             className="mt-1 w-full rounded border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
                             id="password"
                             name="password"
@@ -69,7 +73,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
                             onChange={(event) => setPassword(event.target.value)}
                         />
                     </div>
-                    {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
+                    {error && <p className="text-sm text-red-700" id="auth-form-error" role="alert">{error}</p>}
                     <button className="w-full rounded bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300" type="submit">
                         {isRegister ? "Register" : "Login"}
                     </button>

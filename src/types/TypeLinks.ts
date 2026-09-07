@@ -6,46 +6,51 @@ import { IconType } from "react-icons";
 export type IconNetworks = {
     icon: IconType;
     link: string;
-}
-
-export const handleClick = (link: string): void => {
-    window.open(link, '_blank');
+    label: string;
 }
 
 export const iconsArray: IconNetworks[] = [
     {
         icon: FaFacebook,
-        link: "https://www.facebook.com"
+        link: "https://www.facebook.com",
+        label: "Facebook",
     },
     {
         icon: FaInstagram,
-        link: "https://www.instagram.com"
+        link: "https://www.instagram.com",
+        label: "Instagram",
     },
     {
         icon: FaYoutube,
-        link: "https://www.vk.com"
+        link: "https://www.vk.com",
+        label: "YouTube",
     },
     {
         icon: FaLinkedin,
-        link: "https://www.youtube.com"
+        link: "https://www.youtube.com",
+        label: "LinkedIn",
     },
     {
         icon: FaSquareXTwitter,
-        link: "https://www.twitter.com"
+        link: "https://www.twitter.com",
+        label: "X",
     },
 ];
 
 export const paymentArray: IconNetworks[] = [
     {
         icon: SiVisa,
-        link: "https://www.visa.com/"
+        link: "https://www.visa.com/",
+        label: "Visa",
     }, 
     {
         icon: FaCcMastercard,
-        link: "https://www.mastercard.com/"
+        link: "https://www.mastercard.com/",
+        label: "Mastercard",
     },
     {
         icon: FaBitcoin,
-        link: "https://bitpay.com/"
+        link: "https://bitpay.com/",
+        label: "Bitcoin payment",
     }
 ];

@@ -18,12 +18,13 @@ function StartMining() {
                 <div className="z-10 w-full lg:w-auto"><FormMining /></div>
                 <Image 
                     src={Square} 
-                    alt="square" 
+                    alt="" 
+                    aria-hidden="true"
                     className="absolute -top-11 left-6 w-auto h-auto"
                 />
                 <Image 
                     src={BitcoinIcon}
-                    alt="bitcoinIcon"
+                    alt="Bitcoin logo decoration"
                     className="absolute bottom-0 right-4 w-auto h-auto"
                 />
             </div>

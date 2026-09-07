@@ -34,8 +34,10 @@ const EthereumChart: React.FC = () => {
     }, [])
 
     return(
-        <div 
-            ref={chartRef} 
+        <div
+            aria-label="Ethereum trading volume chart"
+            ref={chartRef}
+            role="img"
             style={{
                 width: '100%',
                 height: '400px'

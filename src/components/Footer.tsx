@@ -1,7 +1,7 @@
 import LogoImg from '../assets/img/Logo.png'
 import Logo from "./logo";
 import QuickLinks from "./quickLinks";
-import { handleClick, iconsArray, paymentArray } from "@/types/TypeLinks";
+import { iconsArray, paymentArray } from "@/types/TypeLinks";
 
 export default function Footer() {
     
@@ -17,16 +17,19 @@ export default function Footer() {
                         </h2>
                         <div className="flex gap items-center justify-between gap-6">
                             {paymentArray.map((obj, index) => (
-                                <div
+                                <a
+                                    aria-label={`Pay with ${obj.label}`}
+                                    href={obj.link}
+                                    rel="noreferrer"
+                                    target="_blank"
                                     className="flex justify-center items-center w-24 h-16 rounded-lg bg-[rgba(224, 224, 224, 1)]"
                                     key={index}
                                     >
                                     <obj.icon 
-                                        onClick={() => handleClick(obj.link)}
-                                        key={index}
+                                        aria-hidden="true"
                                         className="w-12 h-12 text-white z-10 p-1 payments"
                                     />
-                                </div>
+                                </a>
                             ))}
                         </div>
                     </div>
@@ -38,11 +41,16 @@ export default function Footer() {
                 </h5>
                 <div className="flex gap-8 items-center justify-between w-auto h-auto">
                     {iconsArray.map((obj, index) => (
-                        <obj.icon
-                            onClick={() => handleClick(obj.link)}
+                        <a
+                            aria-label={obj.label}
+                            href={obj.link}
                             key={index}
-                            className="w-6 h-6 text-white relative cursor-pointe svgSocialIcons"
-                        />
+                            rel="noreferrer"
+                            target="_blank"
+                            className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                        >
+                            <obj.icon aria-hidden="true" className="w-6 h-6 text-white relative svgSocialIcons" />
+                        </a>
                     ))}
                 </div>
             </article>

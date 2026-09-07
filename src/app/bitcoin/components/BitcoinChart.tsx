@@ -35,8 +35,10 @@ const BitcoinChart: React.FC = () => {
     }, [])
 
     return(
-        <div 
-            ref={chartRef} 
+        <div
+            aria-label="Bitcoin trading volume chart"
+            ref={chartRef}
+            role="img"
             style={{
                 width: '100%',
                 height: '400px'

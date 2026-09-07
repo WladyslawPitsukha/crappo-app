@@ -35,8 +35,10 @@ const LitecoinChart: React.FC = () => {
     }, [])
 
     return(
-        <div 
-            ref={chartRef} 
+        <div
+            aria-label="Litecoin trading volume chart"
+            ref={chartRef}
+            role="img"
             style={{
                 width: '100%',
                 height: '400px'
