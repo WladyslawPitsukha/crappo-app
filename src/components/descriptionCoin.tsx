@@ -18,12 +18,13 @@ const Description: React.FC<DescProps> = ({ id }) => {
                 {item.desc}
             </p>
             <Link
+                aria-label={`Learn more about ${item.title}`}
                 className="custom-button bg-blue-500 text-white mt-4 rounded-full px-8 py-4 hoverButton"
                 href={item.link}
             >
-                <h6 className="font-rubik text-lg font-medium leading-[27px] text-center">
+                <span className="font-rubik text-lg font-medium leading-[27px] text-center">
                     Learn More
-                </h6>
+                </span>
             </Link>
         </div>
     )

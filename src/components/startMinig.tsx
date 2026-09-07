@@ -22,9 +22,10 @@ function StartMining() {
                     aria-hidden="true"
                     className="absolute -top-11 left-6 w-auto h-auto"
                 />
-                <Image 
+                    <Image
                     src={BitcoinIcon}
-                    alt="Bitcoin logo decoration"
+                    alt=""
+                    aria-hidden="true"
                     className="absolute bottom-0 right-4 w-auto h-auto"
                 />
             </div>

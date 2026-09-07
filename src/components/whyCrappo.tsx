@@ -48,7 +48,7 @@ export default function WhyCrappo() {
                             key={index}
                         >
                             <div className="flex justify-center items-center w-20 h-20 rounded-full bg-white bg-opacity-10">
-                                <IconComponent className="w-12 h-12 z-10 text-[#3671E9]" />
+                                <IconComponent aria-hidden="true" className="w-12 h-12 z-10 text-[#3671E9]" />
                             </div>
 
                             <div className="flex flex-col items-start gap-1">
@@ -74,7 +74,7 @@ export default function WhyCrappo() {
                         Experience the next generation cryptocurrency platform. No financial borders, extra fees, and fake reviews.
                     </p>
 
-                    <Button href="/#Products" text="Learn more" />
+                    <Button href="/#Products" text="Learn more about CRAPPO" />
                 </div>
             </article>
         </section>

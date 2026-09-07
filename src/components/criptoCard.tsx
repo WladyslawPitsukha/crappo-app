@@ -32,7 +32,7 @@ export const CriptoCard: React.FC<CriptoCardProps> = ({ id, img: ImgComponent, t
             <p className="text-center text-base font-normal leading-7 tracking-tighter w-80">
                 {text}
             </p>
-            <ButtonCripto link={link} />
+            <ButtonCripto link={link} label={title} />
         </article>
     );
 };
