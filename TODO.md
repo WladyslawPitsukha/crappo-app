@@ -71,8 +71,8 @@ Needs:
 The dashboard is richer, but it still feels like a prototype dashboard, not a full app.
 
 Needs:
-- [ ] real portfolio management in the frontend
-- [ ] buy/sell actions
+- [~] real portfolio management is implemented in the dashboard with per-user local persistence; backend sync remains
+- [~] buy/sell actions are implemented in the dashboard; backend transaction wiring remains
 - [ ] transaction modals
 - [ ] portfolio tracking and analytics from persisted data
 - [ ] watchlist and active assets
@@ -107,9 +107,9 @@ Possible stack choices:
 These should be built first because they directly affect usefulness.
 
 1. [~] Real authentication backend
-2. [ ] Real portfolio management
+2. [~] Real portfolio management is implemented in the dashboard; backend sync remains
 3. [~] Real market data integration
-4. [ ] Transaction buy/sell flow
+4. [~] Transaction buy/sell flow is implemented in the dashboard; backend sync remains
 5. [~] Persistent user data storage foundation
 
 ### Priority 2: product polish
@@ -136,7 +136,7 @@ These are important before calling the app production-ready.
 
 ### Phase 1 — Make it useful
 - [~] real login/register with backend persistence
-- [ ] real portfolio balances
+- [~] real portfolio balances in the dashboard; backend sync remains
 - [~] transaction records foundation
 - [~] live coin prices are connected; historical charts remain pending
 - [ ] watchlist and favorites
@@ -222,9 +222,9 @@ This is a cleaner structure than having everything in a single large dashboard p
 ## 8. Top 10 things to do next
 
 1. [~] Replace localStorage auth with real backend auth
-2. [ ] Add real portfolio holdings and portfolio calculations
+2. [~] Add real portfolio holdings and portfolio calculations in the dashboard; backend sync remains
 3. [x] Connect price data to the dashboard widgets
-4. [ ] Add buy/sell transaction flow
+4. [~] Add buy/sell transaction flow in the dashboard; backend sync remains
 5. [ ] Add watchlist and favorites
 6. [ ] Add transaction history and activity feed
 7. [ ] Improve chart time range controls
@@ -241,7 +241,7 @@ The ideal final version of this project should feel like a real crypto investmen
 - [ ] sign in securely through the backend
 - [ ] view live market prices in the dashboard
 - [ ] manage their portfolio
-- [ ] buy and sell crypto assets
+- [~] buy and sell crypto assets in the dashboard; backend sync remains
 - [ ] track profit/loss over time
 - [ ] monitor trends and activities
 - [ ] access a premium, polished dashboard experience

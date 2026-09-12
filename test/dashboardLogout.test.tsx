@@ -27,6 +27,15 @@ vi.mock("@/components/auth/AuthProvider", () => ({
     }),
 }));
 
+vi.mock("@/utils/coinGecko", () => ({
+    CoinGeckoError: class extends Error {},
+    getCoinMarketData: vi.fn().mockResolvedValue({
+        bitcoin: { price: 70000, change24h: 3.4, volume24h: 1000000000 },
+        ethereum: { price: 2500, change24h: 1.8, volume24h: 500000000 },
+        litecoin: { price: 70, change24h: -0.8, volume24h: 100000000 },
+    }),
+}));
+
 import DashboardPage from "@/app/dashboard/page";
 
 describe("dashboard logout", () => {

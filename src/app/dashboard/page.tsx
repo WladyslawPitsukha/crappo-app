@@ -15,7 +15,27 @@ type Asset = {
     price: number;
     change: number;
     allocation: number;
+    quantity: number;
+    averageCost: number;
+    value: number;
     trend: "up" | "down";
+};
+
+type Holding = {
+    quantity: number;
+    averageCost: number;
+};
+
+type TradeType = "buy" | "sell";
+
+type PortfolioTransaction = {
+    id: string;
+    type: TradeType;
+    symbol: string;
+    quantity: number;
+    price: number;
+    total: number;
+    createdAt: string;
 };
 
 type ActivityItem = {
@@ -26,9 +46,9 @@ type ActivityItem = {
 };
 
 const assetConfig = [
-    { id: "bitcoin", name: "Bitcoin", symbol: "BTC", allocation: 42 },
-    { id: "ethereum", name: "Ethereum", symbol: "ETH", allocation: 29 },
-    { id: "litecoin", name: "Litecoin", symbol: "LTC", allocation: 15 },
+    { id: "bitcoin", name: "Bitcoin", symbol: "BTC" },
+    { id: "ethereum", name: "Ethereum", symbol: "ETH" },
+    { id: "litecoin", name: "Litecoin", symbol: "LTC" },
 ] as const;
 
 const activityFeed: ActivityItem[] = [
@@ -60,6 +80,12 @@ export default function DashboardPage() {
     const [marketError, setMarketError] = useState<string | null>(null);
     const [isMarketLoading, setIsMarketLoading] = useState(true);
     const [requestNumber, setRequestNumber] = useState(0);
+    const [holdings, setHoldings] = useState<Record<string, Holding>>({});
+    const [transactions, setTransactions] = useState<PortfolioTransaction[]>([]);
+    const [tradeType, setTradeType] = useState<TradeType>("buy");
+    const [selectedAssetId, setSelectedAssetId] = useState<Asset["id"]>("bitcoin");
+    const [tradeQuantity, setTradeQuantity] = useState("");
+    const [tradeError, setTradeError] = useState<string | null>(null);
 
     useEffect(() => {
         if (isReady && !user) {
@@ -96,27 +122,127 @@ export default function DashboardPage() {
         void loadMarketData();
 
         return () => controller.abort();
-    }, [isReady, requestNumber, user]);
+    }, [isReady, requestNumber, user?.email]);
 
-    const portfolioAssets: Asset[] = assetConfig.map((asset) => {
-        const currentMarketData = marketData?.[asset.id];
+    useEffect(() => {
+        if (!user) {
+            return;
+        }
 
-        return {
+        const storedPortfolio = localStorage.getItem(`crappo-portfolio-${user.email}`);
+
+        if (!storedPortfolio) {
+            setHoldings({});
+            setTransactions([]);
+            return;
+        }
+
+        try {
+            const parsedPortfolio = JSON.parse(storedPortfolio) as {
+                holdings?: Record<string, Holding>;
+                transactions?: PortfolioTransaction[];
+            };
+            setHoldings(parsedPortfolio.holdings ?? {});
+            setTransactions(parsedPortfolio.transactions ?? []);
+        } catch {
+            setHoldings({});
+            setTransactions([]);
+        }
+    }, [user?.email]);
+
+    const portfolioAssets = useMemo<Asset[]>(() => {
+        const pricedAssets = assetConfig.map((asset) => {
+            const currentMarketData = marketData?.[asset.id];
+            const holding = holdings[asset.id] ?? { quantity: 0, averageCost: 0 };
+
+            return {
+                ...asset,
+                price: currentMarketData?.price ?? 0,
+                change: currentMarketData?.change24h ?? 0,
+                quantity: holding.quantity,
+                averageCost: holding.averageCost,
+                value: holding.quantity * (currentMarketData?.price ?? 0),
+                allocation: 0,
+                trend: (currentMarketData?.change24h ?? 0) >= 0 ? "up" as const : "down" as const,
+            };
+        });
+        const totalValue = pricedAssets.reduce((sum, asset) => sum + asset.value, 0);
+
+        return pricedAssets.map((asset) => ({
             ...asset,
-            price: currentMarketData?.price ?? 0,
-            change: currentMarketData?.change24h ?? 0,
-            trend: (currentMarketData?.change24h ?? 0) >= 0 ? "up" : "down",
-        };
-    });
+            allocation: totalValue > 0 ? (asset.value / totalValue) * 100 : 0,
+        }));
+    }, [holdings, marketData]);
 
     const totalVolume = marketData
         ? Object.values(marketData).reduce((sum, asset) => sum + asset.volume24h, 0)
         : 0;
 
-    const portfolioValue = useMemo(
-        () => portfolioAssets.reduce((sum, asset) => sum + asset.price * (asset.allocation / 100) * 1000, 0),
-        [portfolioAssets],
-    );
+    const portfolioValue = useMemo(() => portfolioAssets.reduce((sum, asset) => sum + asset.value, 0), [portfolioAssets]);
+    const investedValue = useMemo(() => portfolioAssets.reduce(
+        (sum, asset) => sum + asset.quantity * asset.averageCost,
+        0,
+    ), [portfolioAssets]);
+    const portfolioPnl = portfolioValue - investedValue;
+
+    const persistPortfolio = (nextHoldings: Record<string, Holding>, nextTransactions: PortfolioTransaction[]) => {
+        if (!user) {
+            return;
+        }
+
+        localStorage.setItem(`crappo-portfolio-${user.email}`, JSON.stringify({
+            holdings: nextHoldings,
+            transactions: nextTransactions,
+        }));
+    };
+
+    const handleTrade = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const quantity = Number(tradeQuantity);
+        const selectedAsset = portfolioAssets.find((asset) => asset.id === selectedAssetId);
+
+        if (!selectedAsset || !Number.isFinite(quantity) || quantity <= 0 || selectedAsset.price <= 0) {
+            setTradeError("Enter a valid quantity after market data has loaded.");
+            return;
+        }
+
+        const currentHolding = holdings[selectedAssetId] ?? { quantity: 0, averageCost: 0 };
+
+        if (tradeType === "sell" && quantity > currentHolding.quantity) {
+            setTradeError(`You only hold ${currentHolding.quantity} ${selectedAsset.symbol}.`);
+            return;
+        }
+
+        const nextQuantity = tradeType === "buy"
+            ? currentHolding.quantity + quantity
+            : currentHolding.quantity - quantity;
+        const nextAverageCost = tradeType === "buy"
+            ? ((currentHolding.quantity * currentHolding.averageCost) + (quantity * selectedAsset.price)) / nextQuantity
+            : nextQuantity > 0 ? currentHolding.averageCost : 0;
+        const nextHoldings = { ...holdings };
+
+        if (nextQuantity > 0) {
+            nextHoldings[selectedAssetId] = { quantity: nextQuantity, averageCost: nextAverageCost };
+        } else {
+            delete nextHoldings[selectedAssetId];
+        }
+
+        const nextTransactions = [{
+            id: `${Date.now()}-${selectedAssetId}`,
+            type: tradeType,
+            symbol: selectedAsset.symbol,
+            quantity,
+            price: selectedAsset.price,
+            total: quantity * selectedAsset.price,
+            createdAt: new Date().toISOString(),
+        }, ...transactions].slice(0, 20);
+
+        setHoldings(nextHoldings);
+        setTransactions(nextTransactions);
+        persistPortfolio(nextHoldings, nextTransactions);
+        setTradeQuantity("");
+        setTradeError(null);
+    };
 
     if (!isReady || !user) {
         return <main className="p-8 text-white">Loading...</main>;
@@ -158,8 +284,12 @@ export default function DashboardPage() {
                                 {isMarketLoading ? "Loading..." : `$${portfolioValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
                             </h2>
                         </div>
-                        <div className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-200">
-                            +12.4% this month
+                        <div className={`rounded-full border px-3 py-1 text-sm font-medium ${
+                            portfolioPnl >= 0
+                                ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+                                : "border-rose-400/40 bg-rose-500/10 text-rose-200"
+                        }`}>
+                            {investedValue > 0 ? `${portfolioPnl >= 0 ? "+" : ""}$${portfolioPnl.toLocaleString("en-US", { maximumFractionDigits: 2 })} P&L` : "No positions yet"}
                         </div>
                     </div>
 
@@ -275,7 +405,7 @@ export default function DashboardPage() {
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="rounded-3xl border border-white/10 bg-slate-950/30 p-5">
                                     <p className="text-sm text-gray-300">24h Volume</p>
-                                    <p className="mt-2 text-3xl font-bold">$18.6B</p>
+                                    <p className="mt-2 text-3xl font-bold">${(totalVolume / 1_000_000_000).toFixed(1)}B</p>
                                 </div>
                                 <div className="rounded-3xl border border-white/10 bg-slate-950/30 p-5">
                                     <p className="text-sm text-gray-300">Best performer</p>
@@ -299,7 +429,8 @@ export default function DashboardPage() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="font-semibold">${asset.price.toLocaleString()}</p>
+                                        <p className="font-semibold">${asset.value.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p>
+                                        <p className="text-xs text-gray-400">{asset.quantity.toFixed(6)} {asset.symbol}</p>
                                         <p className={`text-sm ${asset.change > 0 ? "text-emerald-300" : "text-rose-300"}`}>
                                             {asset.change > 0 ? "+" : ""}{asset.change}%
                                         </p>
@@ -354,18 +485,60 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
-                        <h3 className="text-lg font-semibold">Quick actions</h3>
-                        <div className="mt-5 flex flex-col gap-3">
-                            <button className="rounded-full bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-500" type="button">
-                                Deposit funds
-                            </button>
-                            <button className="rounded-full border border-white/20 bg-white/5 px-4 py-3 font-medium text-white hover:bg-white/10" type="button">
-                                Trade now
-                            </button>
-                            <button className="rounded-full border border-white/20 bg-white/5 px-4 py-3 font-medium text-white hover:bg-white/10" type="button">
-                                View reports
-                            </button>
+                        <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-lg font-semibold">Trade asset</h3>
+                            <span className="text-xs uppercase tracking-[0.2em] text-blue-200">Demo portfolio</span>
                         </div>
+                        <form className="mt-5 space-y-4" onSubmit={handleTrade}>
+                            <div className="flex rounded-full border border-white/10 bg-slate-950/40 p-1" role="group" aria-label="Trade type">
+                                {(["buy", "sell"] as TradeType[]).map((type) => (
+                                    <button
+                                        key={type}
+                                        className={`flex-1 rounded-full px-3 py-2 text-sm font-medium capitalize transition ${tradeType === type ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-white/10"}`}
+                                        onClick={() => setTradeType(type)}
+                                        type="button"
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
+                            <label className="block text-sm text-gray-300">
+                                Asset
+                                <select
+                                    className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3 text-white outline-none focus:border-blue-400"
+                                    onChange={(event) => setSelectedAssetId(event.target.value as Asset["id"])}
+                                    value={selectedAssetId}
+                                >
+                                    {portfolioAssets.map((asset) => (
+                                        <option key={asset.id} value={asset.id}>{asset.name} ({asset.symbol})</option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label className="block text-sm text-gray-300">
+                                Quantity
+                                <input
+                                    className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3 text-white outline-none focus:border-blue-400"
+                                    min="0"
+                                    onChange={(event) => setTradeQuantity(event.target.value)}
+                                    placeholder="0.00"
+                                    step="any"
+                                    type="number"
+                                    value={tradeQuantity}
+                                />
+                            </label>
+                            {tradeError && <p className="text-sm text-rose-200" role="alert">{tradeError}</p>}
+                            <button className="w-full rounded-full bg-blue-600 px-4 py-3 font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50" disabled={isMarketLoading} type="submit">
+                                {isMarketLoading ? "Waiting for prices..." : `${tradeType === "buy" ? "Buy" : "Sell"} asset`}
+                            </button>
+                        </form>
+                        {transactions.length > 0 && (
+                            <div className="mt-5 border-t border-white/10 pt-4">
+                                <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Latest trade</p>
+                                <p className="mt-2 text-sm text-gray-200">
+                                    <span className="font-semibold uppercase">{transactions[0].type}</span> {transactions[0].quantity} {transactions[0].symbol} for ${transactions[0].total.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </aside>
             </section>
