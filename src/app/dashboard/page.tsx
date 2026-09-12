@@ -4,10 +4,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { CoinGeckoError, getCoinMarketData, type CoinMarketData } from "@/utils/coinGecko";
 
 type DashboardTab = "Overview" | "Performance" | "Portfolio";
 
 type Asset = {
+    id: "bitcoin" | "ethereum" | "litecoin";
     name: string;
     symbol: string;
     price: number;
@@ -23,12 +25,11 @@ type ActivityItem = {
     time: string;
 };
 
-const portfolioAssets: Asset[] = [
-    { name: "Bitcoin", symbol: "BTC", price: 77191, change: 3.4, allocation: 42, trend: "up" },
-    { name: "Ethereum", symbol: "ETH", price: 2522.51, change: 1.8, allocation: 29, trend: "up" },
-    { name: "Solana", symbol: "SOL", price: 161.2, change: -0.8, allocation: 15, trend: "down" },
-    { name: "Cardano", symbol: "ADA", price: 0.71, change: 2.1, allocation: 14, trend: "up" },
-];
+const assetConfig = [
+    { id: "bitcoin", name: "Bitcoin", symbol: "BTC", allocation: 42 },
+    { id: "ethereum", name: "Ethereum", symbol: "ETH", allocation: 29 },
+    { id: "litecoin", name: "Litecoin", symbol: "LTC", allocation: 15 },
+] as const;
 
 const activityFeed: ActivityItem[] = [
     { type: "Buy", coin: "BTC", value: "+0.32 BTC", time: "2 hours ago" },
@@ -38,7 +39,7 @@ const activityFeed: ActivityItem[] = [
 ];
 
 const marketSignals = [
-    { label: "24h Volume", value: "$18.6B", tone: "blue" },
+    { label: "24h Volume", value: "$0", tone: "blue" },
     { label: "BTC Dominance", value: "52.1%", tone: "violet" },
     { label: "Fear & Greed", value: "72 / 100", tone: "emerald" },
     { label: "Funding Rate", value: "+0.008%", tone: "amber" },
@@ -55,6 +56,10 @@ export default function DashboardPage() {
     const { isReady, logout, user } = useAuth();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<DashboardTab>("Overview");
+    const [marketData, setMarketData] = useState<Record<Asset["id"], CoinMarketData> | null>(null);
+    const [marketError, setMarketError] = useState<string | null>(null);
+    const [isMarketLoading, setIsMarketLoading] = useState(true);
+    const [requestNumber, setRequestNumber] = useState(0);
 
     useEffect(() => {
         if (isReady && !user) {
@@ -62,9 +67,55 @@ export default function DashboardPage() {
         }
     }, [isReady, router, user]);
 
+    useEffect(() => {
+        if (!isReady || !user) {
+            return;
+        }
+
+        const controller = new AbortController();
+
+        const loadMarketData = async () => {
+            setIsMarketLoading(true);
+            setMarketError(null);
+
+            try {
+                setMarketData(await getCoinMarketData(controller.signal));
+            } catch (error) {
+                if (error instanceof DOMException && error.name === "AbortError") {
+                    return;
+                }
+
+                setMarketError(error instanceof CoinGeckoError ? error.message : "Unable to load market data.");
+            } finally {
+                if (!controller.signal.aborted) {
+                    setIsMarketLoading(false);
+                }
+            }
+        };
+
+        void loadMarketData();
+
+        return () => controller.abort();
+    }, [isReady, requestNumber, user]);
+
+    const portfolioAssets: Asset[] = assetConfig.map((asset) => {
+        const currentMarketData = marketData?.[asset.id];
+
+        return {
+            ...asset,
+            price: currentMarketData?.price ?? 0,
+            change: currentMarketData?.change24h ?? 0,
+            trend: (currentMarketData?.change24h ?? 0) >= 0 ? "up" : "down",
+        };
+    });
+
+    const totalVolume = marketData
+        ? Object.values(marketData).reduce((sum, asset) => sum + asset.volume24h, 0)
+        : 0;
+
     const portfolioValue = useMemo(
         () => portfolioAssets.reduce((sum, asset) => sum + asset.price * (asset.allocation / 100) * 1000, 0),
-        [],
+        [portfolioAssets],
     );
 
     if (!isReady || !user) {
@@ -103,7 +154,9 @@ export default function DashboardPage() {
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div>
                             <p className="text-sm text-blue-200">Portfolio balance</p>
-                            <h2 className="mt-2 text-4xl font-bold">${portfolioValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}</h2>
+                            <h2 className="mt-2 text-4xl font-bold">
+                                {isMarketLoading ? "Loading..." : `$${portfolioValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
+                            </h2>
                         </div>
                         <div className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-200">
                             +12.4% this month
@@ -137,17 +190,34 @@ export default function DashboardPage() {
                                 signal.tone === "emerald" ? "border-emerald-400/30 bg-emerald-500/10" : "border-amber-400/30 bg-amber-500/10"
                             }`}>
                                 <p className="text-sm text-gray-200">{signal.label}</p>
-                                <p className="mt-2 text-xl font-bold">{signal.value}</p>
+                                <p className="mt-2 text-xl font-bold">
+                                    {signal.label === "24h Volume" && marketData
+                                        ? `$${(totalVolume / 1_000_000_000).toFixed(1)}B`
+                                        : signal.value}
+                                </p>
                             </div>
                         ))}
                     </div>
+
+                    {marketError && (
+                        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100" role="alert">
+                            <span>{marketError}</span>
+                            <button
+                                className="rounded-full border border-rose-300/40 px-3 py-1.5 font-medium transition hover:bg-rose-200 hover:text-slate-900"
+                                onClick={() => setRequestNumber((current) => current + 1)}
+                                type="button"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    )}
 
                     {activeTab === "Overview" && (
                         <div className="mt-7 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
                             <div className="rounded-3xl border border-white/10 bg-slate-950/30 p-5">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-lg font-semibold">Asset allocation</h3>
-                                    <span className="text-sm text-gray-300">Updated now</span>
+                                    <span className="text-sm text-gray-300">{isMarketLoading ? "Updating..." : "Updated now"}</span>
                                 </div>
                                 <div className="mt-6 space-y-4">
                                     {portfolioAssets.map((asset) => (

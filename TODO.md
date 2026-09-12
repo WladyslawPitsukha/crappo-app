@@ -62,7 +62,7 @@ Some values are static samples, and some charts render with generated data.
 This is good for UI development, but not enough for a serious crypto app.
 
 Needs:
-- [~] real market data integration foundation exists, but dashboard integration is pending
+- [x] real market data integration is connected to the dashboard widgets; historical charts remain pending
 - [ ] real historical charts
 - [~] portfolio models and endpoints exist, but values are not connected to the dashboard
 - [~] transaction persistence endpoint exists, but the frontend flow is pending
@@ -138,7 +138,7 @@ These are important before calling the app production-ready.
 - [~] real login/register with backend persistence
 - [ ] real portfolio balances
 - [~] transaction records foundation
-- [ ] live coin prices and charts
+- [~] live coin prices are connected; historical charts remain pending
 - [ ] watchlist and favorites
 
 ### Phase 2 — Make it compelling
@@ -223,7 +223,7 @@ This is a cleaner structure than having everything in a single large dashboard p
 
 1. [~] Replace localStorage auth with real backend auth
 2. [ ] Add real portfolio holdings and portfolio calculations
-3. [ ] Connect price data to the dashboard widgets
+3. [x] Connect price data to the dashboard widgets
 4. [ ] Add buy/sell transaction flow
 5. [ ] Add watchlist and favorites
 6. [ ] Add transaction history and activity feed
@@ -265,7 +265,7 @@ If this milestone succeeds, the app will already feel much closer to a productio
 ### Must do next
 - [~] replace local auth with real backend auth
 - [~] add persistent portfolio storage
-- [~] integrate real live market data
+- [x] integrate real live market data into dashboard widgets
 - [ ] implement buy/sell transaction flow
 - [ ] add watchlist and favorites
 - [ ] add better chart filters and real data rendering
