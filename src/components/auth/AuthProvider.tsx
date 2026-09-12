@@ -22,12 +22,13 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 const USERS_KEY = "crappo-demo-users";
 const SESSION_KEY = "crappo-demo-session";
+const DEMO_USER = { email: "user@example.com", password: "password123" };
 
 function getStoredUsers(): StoredUser[] {
     const storedUsers = localStorage.getItem(USERS_KEY);
 
     if (!storedUsers) {
-        return [];
+        return [DEMO_USER];
     }
 
     try {
@@ -82,7 +83,8 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
             return "An account with this email already exists.";
         }
 
-        localStorage.setItem(USERS_KEY, JSON.stringify([...users, { email: normalizedEmail, password }]));
+        const nextUsers = [...users.filter((storedUser) => storedUser.email !== DEMO_USER.email), { email: normalizedEmail, password }];
+        localStorage.setItem(USERS_KEY, JSON.stringify(nextUsers));
         createSession(normalizedEmail);
         return null;
     };

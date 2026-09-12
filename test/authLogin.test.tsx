@@ -30,6 +30,7 @@ import AuthForm from "@/components/auth/AuthForm";
 
 describe("login validation", () => {
     beforeEach(() => {
+        localStorage.clear();
         mockLogin.mockReset();
         mockRegister.mockReset();
         mockPush.mockReset();
@@ -89,5 +90,16 @@ describe("login validation", () => {
 
         expect(mockLogin).not.toHaveBeenCalled();
         expect(mockPush).not.toHaveBeenCalled();
+    });
+
+    it("accepts the default demo credentials when no saved users exist", async () => {
+        const user = userEvent.setup();
+        render(<AuthForm mode="login" />);
+
+        await user.type(screen.getByLabelText("Email"), "user@example.com");
+        await user.type(screen.getByLabelText("Password"), "password123");
+        await user.click(screen.getByRole("button", { name: "Login" }));
+
+        expect(mockPush).toHaveBeenCalledWith("/dashboard");
     });
 });
