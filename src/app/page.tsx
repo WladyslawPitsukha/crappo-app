@@ -10,9 +10,9 @@ import Features from "@/components/features";
 
 export default function Home() {
   return (
-    <div>
+    <div className="min-h-screen bg-[#0d0d2b] text-white">
       <NavBar />
-      <main>
+      <main className="overflow-hidden">
         <Header />
         <WhyCrappo />
         <TradeSecurely />

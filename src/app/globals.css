@@ -2,8 +2,8 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
-body {
-    background-color: rgba(13, 13, 43, 1);
+:root {
+    color-scheme: dark;
 }
 
 html {
@@ -11,27 +11,65 @@ html {
     scroll-padding-top: 88px;
 }
 
-main > section, footer {
+body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top, rgba(52, 92, 243, 0.28), transparent 35%),
+        linear-gradient(180deg, #0d0d2b 0%, #111a3a 100%);
+    color: #ffffff;
+    font-family: var(--font-rubik), sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+main > section,
+footer {
     padding: 48px 20px 64px;
 }
 
 @media (min-width: 768px) {
-    main > section, footer {
+    main > section,
+    footer {
         padding: 60px 48px 72px;
     }
 }
 
 @media (min-width: 1280px) {
-    main > section, footer {
+    main > section,
+    footer {
         padding: 60px 120px 80px;
     }
 }
 
-h1, h2, h3, h4, h5, h6, p {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
     margin: 0;
+}
+
+button,
+a {
+    transition: all 0.2s ease;
 }
 
 button {
     width: auto;
     height: auto;
+}
+
+img {
+    max-width: 100%;
+    display: block;
+}
+
+::selection {
+    background: rgba(59, 130, 246, 0.45);
+    color: white;
 }
