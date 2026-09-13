@@ -16,7 +16,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
     const [error, setError] = useState("");
     const isRegister = mode === "register";
 
-    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setError("");
 
@@ -25,7 +25,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
             return;
         }
 
-        const authError = isRegister ? register(email, password) : login(email, password);
+        const authError = isRegister ? await register(email, password) : await login(email, password);
 
         if (authError) {
             setError(authError);

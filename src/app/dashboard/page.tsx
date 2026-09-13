@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { CoinGeckoError, getCoinMarketData, type CoinMarketData } from "@/utils/coinGecko";
+import { createBackendTrade, getBackendPortfolio, upsertBackendHolding } from "@/utils/backendApi";
 
 type DashboardTab = "Overview" | "Performance" | "Portfolio";
 
@@ -72,9 +73,12 @@ const performanceStats = [
     { label: "Active trades", value: "14", change: "3 new" },
 ];
 
+const TOKEN_KEY = "crappo-access-token";
+
 export default function DashboardPage() {
     const { isReady, logout, user } = useAuth();
     const router = useRouter();
+    const userEmail = user?.email;
     const [activeTab, setActiveTab] = useState<DashboardTab>("Overview");
     const [marketData, setMarketData] = useState<Record<Asset["id"], CoinMarketData> | null>(null);
     const [marketError, setMarketError] = useState<string | null>(null);
@@ -94,7 +98,7 @@ export default function DashboardPage() {
     }, [isReady, router, user]);
 
     useEffect(() => {
-        if (!isReady || !user) {
+        if (!isReady || !userEmail) {
             return;
         }
 
@@ -122,14 +126,14 @@ export default function DashboardPage() {
         void loadMarketData();
 
         return () => controller.abort();
-    }, [isReady, requestNumber, user?.email]);
+    }, [isReady, requestNumber, userEmail]);
 
     useEffect(() => {
-        if (!user) {
+        if (!userEmail) {
             return;
         }
 
-        const storedPortfolio = localStorage.getItem(`crappo-portfolio-${user.email}`);
+        const storedPortfolio = localStorage.getItem(`crappo-portfolio-${userEmail}`);
 
         if (!storedPortfolio) {
             setHoldings({});
@@ -148,7 +152,48 @@ export default function DashboardPage() {
             setHoldings({});
             setTransactions([]);
         }
-    }, [user?.email]);
+    }, [userEmail]);
+
+    useEffect(() => {
+        const token = localStorage.getItem(TOKEN_KEY);
+
+        if (!token || !userEmail) {
+            return;
+        }
+
+        const loadBackendPortfolio = async () => {
+            try {
+                const portfolio = await getBackendPortfolio(token);
+                const nextHoldings: Record<string, Holding> = {};
+
+                for (const holding of portfolio.holdings) {
+                    const asset = assetConfig.find((item) => item.symbol === holding.symbol);
+
+                    if (asset) {
+                        nextHoldings[asset.id] = {
+                            quantity: holding.quantity,
+                            averageCost: holding.average_cost,
+                        };
+                    }
+                }
+
+                setHoldings(nextHoldings);
+                setTransactions(portfolio.transactions.map((transaction) => ({
+                    id: String(transaction.id),
+                    type: transaction.type,
+                    symbol: transaction.symbol,
+                    quantity: transaction.quantity,
+                    price: transaction.price_per_coin,
+                    total: transaction.total_value,
+                    createdAt: transaction.created_at,
+                })));
+            } catch {
+                // Local persistence remains the development fallback when the API is offline.
+            }
+        };
+
+        void loadBackendPortfolio();
+    }, [userEmail]);
 
     const portfolioAssets = useMemo<Asset[]>(() => {
         const pricedAssets = assetConfig.map((asset) => {
@@ -196,7 +241,7 @@ export default function DashboardPage() {
         }));
     };
 
-    const handleTrade = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleTrade = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const quantity = Number(tradeQuantity);
         const selectedAsset = portfolioAssets.find((asset) => asset.id === selectedAssetId);
@@ -240,6 +285,30 @@ export default function DashboardPage() {
         setHoldings(nextHoldings);
         setTransactions(nextTransactions);
         persistPortfolio(nextHoldings, nextTransactions);
+
+        const token = localStorage.getItem(TOKEN_KEY);
+
+        if (token) {
+            try {
+                await createBackendTrade(token, {
+                    symbol: selectedAsset.symbol,
+                    type: tradeType,
+                    quantity,
+                    price_per_coin: selectedAsset.price,
+                    total_value: quantity * selectedAsset.price,
+                });
+                await upsertBackendHolding(token, {
+                    symbol: selectedAsset.symbol,
+                    name: selectedAsset.name,
+                    quantity: nextQuantity,
+                    average_cost: nextAverageCost,
+                    replace: true,
+                });
+            } catch {
+                // The local record above keeps the interaction usable if the API drops.
+            }
+        }
+
         setTradeQuantity("");
         setTradeError(null);
     };
@@ -304,7 +373,7 @@ export default function DashboardPage() {
                                         : "border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10"
                                 }`}
                                 onClick={() => setActiveTab(tab)}
-                                role="button"
+                                role="tab"
                                 type="button"
                             >
                                 {tab}

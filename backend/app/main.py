@@ -114,6 +114,7 @@ def upsert_holding(
     name = str(payload.get("name", symbol))
     quantity = float(payload["quantity"])
     average_cost = float(payload["average_cost"])
+    replace_holding = bool(payload.get("replace", False))
 
     holding = (
         db.query(PortfolioHolding)
@@ -130,6 +131,10 @@ def upsert_holding(
             average_cost=average_cost,
         )
         db.add(holding)
+    elif replace_holding:
+        holding.quantity = quantity
+        holding.average_cost = average_cost
+        holding.name = name
     else:
         total_quantity = holding.quantity + quantity
         existing_cost = holding.average_cost * holding.quantity

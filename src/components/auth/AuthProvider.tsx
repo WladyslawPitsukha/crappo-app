@@ -2,6 +2,7 @@
 
 import React from "react";
 import { createContext, useContext, useEffect, useState } from "react";
+import { loginWithBackend, registerWithBackend } from "@/utils/backendApi";
 
 type User = {
     email: string;
@@ -14,14 +15,15 @@ type StoredUser = User & {
 type AuthContextValue = {
     isReady: boolean;
     user: User | null;
-    login: (email: string, password: string) => string | null;
-    register: (email: string, password: string) => string | null;
+    login: (email: string, password: string) => Promise<string | null>;
+    register: (email: string, password: string) => Promise<string | null>;
     logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const USERS_KEY = "crappo-demo-users";
 const SESSION_KEY = "crappo-demo-session";
+const TOKEN_KEY = "crappo-access-token";
 const DEMO_USER = { email: "user@example.com", password: "password123" };
 
 function getStoredUsers(): StoredUser[] {
@@ -62,9 +64,20 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
         setUser(nextUser);
     };
 
-    const login = (email: string, password: string) => {
+    const login = async (email: string, password: string) => {
+        const normalizedEmail = email.toLowerCase();
+
+        try {
+            const response = await loginWithBackend(normalizedEmail, password);
+            localStorage.setItem(TOKEN_KEY, response.access_token);
+            createSession(normalizedEmail);
+            return null;
+        } catch {
+            // Keep the demo account usable while the local API is not running.
+        }
+
         const matchingUser = getStoredUsers().find(
-            (storedUser) => storedUser.email === email.toLowerCase() && storedUser.password === password,
+            (storedUser) => storedUser.email === normalizedEmail && storedUser.password === password,
         );
 
         if (!matchingUser) {
@@ -75,9 +88,18 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
         return null;
     };
 
-    const register = (email: string, password: string) => {
+    const register = async (email: string, password: string) => {
         const normalizedEmail = email.toLowerCase();
         const users = getStoredUsers();
+
+        try {
+            const response = await registerWithBackend(normalizedEmail, password);
+            localStorage.setItem(TOKEN_KEY, response.access_token);
+            createSession(normalizedEmail);
+            return null;
+        } catch {
+            // Keep local registration available for frontend-only development.
+        }
 
         if (users.some((storedUser) => storedUser.email === normalizedEmail)) {
             return "An account with this email already exists.";
@@ -91,6 +113,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
     const logout = () => {
         localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(TOKEN_KEY);
         setUser(null);
     };
 
