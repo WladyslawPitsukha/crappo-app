@@ -4,42 +4,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { CoinGeckoError, getCoinMarketData, type CoinMarketData } from "@/utils/coinGecko";
-import { createBackendTrade, getBackendPortfolio, getMarketInsights, upsertBackendHolding, type MarketInsights } from "@/utils/backendApi";
-import { assetConfig, type AssetId } from "@/data/assets";
-import { useWatchlist } from "@/hooks/useWatchlist";
+import { useMarketData } from "@/hooks/useMarketData";
+import { useDashboard } from "@/hooks/useDashboard";
+import PortfolioOverview from "@/components/dashboard/PortfolioOverview";
+import Watchlist from "@/components/dashboard/Watchlist";
 
 type DashboardTab = "Overview" | "Performance" | "Portfolio";
-
-type Asset = {
-    id: AssetId;
-    name: string;
-    symbol: string;
-    price: number;
-    change: number;
-    allocation: number;
-    quantity: number;
-    averageCost: number;
-    value: number;
-    trend: "up" | "down";
-};
-
-type Holding = {
-    quantity: number;
-    averageCost: number;
-};
-
-type TradeType = "buy" | "sell";
-
-type PortfolioTransaction = {
-    id: string;
-    type: TradeType;
-    symbol: string;
-    quantity: number;
-    price: number;
-    total: number;
-    createdAt: string;
-};
 
 const marketSignals = [
     { label: "24h Volume", value: "$0", tone: "blue" },
@@ -60,22 +30,9 @@ export default function DashboardPage() {
     const router = useRouter();
     const userEmail = user?.email;
     const [activeTab, setActiveTab] = useState<DashboardTab>("Overview");
-    const [marketData, setMarketData] = useState<Record<Asset["id"], CoinMarketData> | null>(null);
-    const [marketError, setMarketError] = useState<string | null>(null);
-    const [isMarketLoading, setIsMarketLoading] = useState(true);
     const [requestNumber, setRequestNumber] = useState(0);
-    const [holdings, setHoldings] = useState<Record<string, Holding>>({});
-    const [transactions, setTransactions] = useState<PortfolioTransaction[]>([]);
-    const [watchlistMessage, setWatchlistMessage] = useState<string | null>(null);
-    const [watchlistSearch, setWatchlistSearch] = useState("");
-    const [marketInsights, setMarketInsights] = useState<MarketInsights | null>(null);
-    const [pendingTrade, setPendingTrade] = useState<{ type: TradeType; asset: Asset; quantity: number } | null>(null);
-    const [selectedTransaction, setSelectedTransaction] = useState<PortfolioTransaction | null>(null);
-    const [tradeType, setTradeType] = useState<TradeType>("buy");
-    const [selectedAssetId, setSelectedAssetId] = useState<Asset["id"]>("bitcoin");
-    const [tradeQuantity, setTradeQuantity] = useState("");
-    const [tradeError, setTradeError] = useState<string | null>(null);
-    const { watchlist, toggleWatchlist } = useWatchlist(userEmail);
+    const { marketData, marketError, isMarketLoading, marketInsights } = useMarketData(Boolean(isReady && userEmail), requestNumber);
+    const dashboard = useDashboard(userEmail, marketData);
 
     useEffect(() => {
         if (isReady && !user) {
@@ -83,286 +40,8 @@ export default function DashboardPage() {
         }
     }, [isReady, router, user]);
 
-    useEffect(() => {
-        if (!isReady || !userEmail) {
-            return;
-        }
-
-        const controller = new AbortController();
-
-        const loadMarketData = async () => {
-            setIsMarketLoading(true);
-            setMarketError(null);
-
-            try {
-                setMarketData(await getCoinMarketData(controller.signal));
-            } catch (error) {
-                if (error instanceof DOMException && error.name === "AbortError") {
-                    return;
-                }
-
-                setMarketError(error instanceof CoinGeckoError ? error.message : "Unable to load market data.");
-            } finally {
-                if (!controller.signal.aborted) {
-                    setIsMarketLoading(false);
-                }
-            }
-        };
-
-        void loadMarketData();
-
-        return () => controller.abort();
-    }, [isReady, requestNumber, userEmail]);
-
-    useEffect(() => {
-        if (!userEmail) {
-            return;
-        }
-
-        const storedPortfolio = localStorage.getItem(`crappo-portfolio-${userEmail}`);
-
-        if (!storedPortfolio) {
-            setHoldings({});
-            setTransactions([]);
-            return;
-        }
-
-        try {
-            const parsedPortfolio = JSON.parse(storedPortfolio) as {
-                holdings?: Record<string, Holding>;
-                transactions?: PortfolioTransaction[];
-            };
-            setHoldings(parsedPortfolio.holdings ?? {});
-            setTransactions(parsedPortfolio.transactions ?? []);
-        } catch {
-            setHoldings({});
-            setTransactions([]);
-        }
-    }, [userEmail]);
-
-    useEffect(() => {
-        if (!userEmail) return;
-        void getMarketInsights().then(setMarketInsights).catch(() => setMarketInsights(null));
-    }, [userEmail]);
-
-    useEffect(() => {
-        if (!userEmail) {
-            return;
-        }
-
-        const loadBackendPortfolio = async () => {
-            try {
-                const portfolio = await getBackendPortfolio();
-                const nextHoldings: Record<string, Holding> = {};
-
-                for (const holding of portfolio.holdings) {
-                    const asset = assetConfig.find((item) => item.symbol === holding.symbol);
-
-                    if (asset) {
-                        nextHoldings[asset.id] = {
-                            quantity: holding.quantity,
-                            averageCost: holding.average_cost,
-                        };
-                    }
-                }
-
-                setHoldings(nextHoldings);
-                setTransactions(portfolio.transactions.map((transaction) => ({
-                    id: String(transaction.id),
-                    type: transaction.type,
-                    symbol: transaction.symbol,
-                    quantity: transaction.quantity,
-                    price: transaction.price_per_coin,
-                    total: transaction.total_value,
-                    createdAt: transaction.created_at,
-                })));
-            } catch {
-                // Local persistence remains the development fallback when the API is offline.
-            }
-        };
-
-        void loadBackendPortfolio();
-    }, [userEmail]);
-
-    const portfolioAssets = useMemo<Asset[]>(() => {
-        const pricedAssets = assetConfig.map((asset) => {
-            const currentMarketData = marketData?.[asset.id];
-            const holding = holdings[asset.id] ?? { quantity: 0, averageCost: 0 };
-
-            return {
-                ...asset,
-                price: currentMarketData?.price ?? 0,
-                change: currentMarketData?.change24h ?? 0,
-                quantity: holding.quantity,
-                averageCost: holding.averageCost,
-                value: holding.quantity * (currentMarketData?.price ?? 0),
-                allocation: 0,
-                trend: (currentMarketData?.change24h ?? 0) >= 0 ? "up" as const : "down" as const,
-            };
-        });
-        const totalValue = pricedAssets.reduce((sum, asset) => sum + asset.value, 0);
-
-        return pricedAssets.map((asset) => ({
-            ...asset,
-            allocation: totalValue > 0 ? (asset.value / totalValue) * 100 : 0,
-        }));
-    }, [holdings, marketData]);
-
-    const totalVolume = marketData
-        ? Object.values(marketData).reduce((sum, asset) => sum + asset.volume24h, 0)
-        : 0;
-
-    const portfolioValue = useMemo(() => portfolioAssets.reduce((sum, asset) => sum + asset.value, 0), [portfolioAssets]);
-    const investedValue = useMemo(() => portfolioAssets.reduce(
-        (sum, asset) => sum + asset.quantity * asset.averageCost,
-        0,
-    ), [portfolioAssets]);
-    const portfolioPnl = portfolioValue - investedValue;
-    const recentActivity = useMemo(() => transactions.slice(0, 4).map((transaction) => ({
-        type: transaction.type,
-        coin: transaction.symbol,
-        value: `${transaction.type === "buy" ? "+" : "-"}${transaction.quantity} ${transaction.symbol}`,
-        time: new Date(transaction.createdAt).toLocaleString([], {
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
-        }),
-    })), [transactions]);
-    const transactionAnalytics = useMemo(() => {
-        const totalVolume = transactions.reduce((sum, transaction) => sum + transaction.total, 0);
-        const buyCount = transactions.filter((transaction) => transaction.type === "buy").length;
-        const sellCount = transactions.filter((transaction) => transaction.type === "sell").length;
-        const activeAssets = new Set(transactions.map((transaction) => transaction.symbol)).size;
-
-        return {
-            totalVolume,
-            averageTrade: transactions.length > 0 ? totalVolume / transactions.length : 0,
-            buyCount,
-            sellCount,
-            activeAssets,
-        };
-    }, [transactions]);
-    const watchlistAssets = useMemo(() => {
-        const ids = watchlist.length > 0 ? watchlist : assetConfig.map((asset) => asset.id);
-
-        return ids.map((assetId) => {
-            const assetMeta = assetConfig.find((asset) => asset.id === assetId) ?? assetConfig[0];
-            const currentMarketData = marketData?.[assetId];
-
-            return {
-                ...assetMeta,
-                price: currentMarketData?.price ?? 0,
-                change: currentMarketData?.change24h ?? 0,
-                value: 0,
-                quantity: 0,
-                averageCost: 0,
-                allocation: 0,
-                trend: (currentMarketData?.change24h ?? 0) >= 0 ? "up" : "down",
-            };
-        });
-    }, [marketData, watchlist]);
-
-    const searchableAssets = useMemo(() => assetConfig.filter((asset) => `${asset.name} ${asset.symbol}`.toLowerCase().includes(watchlistSearch.toLowerCase())), [watchlistSearch]);
-
-    const persistPortfolio = (nextHoldings: Record<string, Holding>, nextTransactions: PortfolioTransaction[]) => {
-        if (!user) {
-            return;
-        }
-
-        localStorage.setItem(`crappo-portfolio-${user.email}`, JSON.stringify({
-            holdings: nextHoldings,
-            transactions: nextTransactions,
-        }));
-    };
-
-    const handleWatchlistToggle = async (assetId: Asset["id"]) => {
-        const asset = assetConfig.find((item) => item.id === assetId);
-        if (!asset) {
-            return;
-        }
-        const isAlreadyWatched = watchlist.includes(assetId);
-        await toggleWatchlist(assetId);
-        setWatchlistMessage(isAlreadyWatched ? `${asset.name} was removed from your watchlist.` : `${asset.name} is in your watchlist.`);
-    };
-
-    const handleTrade = async (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        const quantity = Number(tradeQuantity);
-        const selectedAsset = portfolioAssets.find((asset) => asset.id === selectedAssetId);
-
-        if (!selectedAsset || !Number.isFinite(quantity) || quantity <= 0 || selectedAsset.price <= 0) {
-            setTradeError("Enter a valid quantity after market data has loaded.");
-            return;
-        }
-
-        const currentHolding = holdings[selectedAssetId] ?? { quantity: 0, averageCost: 0 };
-
-        if (tradeType === "sell" && quantity > currentHolding.quantity) {
-            setTradeError(`You only hold ${currentHolding.quantity} ${selectedAsset.symbol}.`);
-            return;
-        }
-
-        setPendingTrade({ type: tradeType, asset: selectedAsset, quantity });
-    };
-
-    const confirmTrade = async () => {
-        if (!pendingTrade) return;
-        const { asset: selectedAsset, quantity, type: confirmedTradeType } = pendingTrade;
-        const currentHolding = holdings[selectedAsset.id] ?? { quantity: 0, averageCost: 0 };
-        const nextQuantity = confirmedTradeType === "buy"
-            ? currentHolding.quantity + quantity
-            : currentHolding.quantity - quantity;
-        const nextAverageCost = confirmedTradeType === "buy"
-            ? ((currentHolding.quantity * currentHolding.averageCost) + (quantity * selectedAsset.price)) / nextQuantity
-            : nextQuantity > 0 ? currentHolding.averageCost : 0;
-        const nextHoldings = { ...holdings };
-
-        if (nextQuantity > 0) {
-            nextHoldings[selectedAssetId] = { quantity: nextQuantity, averageCost: nextAverageCost };
-        } else {
-            delete nextHoldings[selectedAssetId];
-        }
-
-        const nextTransactions = [{
-            id: `${Date.now()}-${selectedAssetId}`,
-            type: confirmedTradeType,
-            symbol: selectedAsset.symbol,
-            quantity,
-            price: selectedAsset.price,
-            total: quantity * selectedAsset.price,
-            createdAt: new Date().toISOString(),
-        }, ...transactions].slice(0, 20);
-
-        setHoldings(nextHoldings);
-        setTransactions(nextTransactions);
-        persistPortfolio(nextHoldings, nextTransactions);
-
-        {
-            try {
-                await createBackendTrade({
-                    symbol: selectedAsset.symbol,
-                    type: tradeType,
-                    quantity,
-                    price_per_coin: selectedAsset.price,
-                    total_value: quantity * selectedAsset.price,
-                });
-                await upsertBackendHolding({
-                    symbol: selectedAsset.symbol,
-                    name: selectedAsset.name,
-                    quantity: nextQuantity,
-                    average_cost: nextAverageCost,
-                    replace: true,
-                });
-            } catch {
-                // The local record above keeps the interaction usable if the API drops.
-            }
-        }
-
-        setTradeQuantity("");
-        setTradeError(null);
-        setPendingTrade(null);
-    };
+    const totalVolume = useMemo(() => marketData ? Object.values(marketData).reduce((sum, asset) => sum + asset.volume24h, 0) : 0, [marketData]);
+    const { portfolioAssets, portfolioValue, investedValue, portfolioPnl, transactions, watchlist, watchlistAssets, searchableAssets, watchlistMessage, watchlistSearch, setWatchlistSearch, handleWatchlistToggle, transactionAnalytics, recentActivity, pendingTrade, setPendingTrade, selectedTransaction, setSelectedTransaction, tradeType, setTradeType, selectedAssetId, setSelectedAssetId, tradeQuantity, setTradeQuantity, tradeError, handleTrade, confirmTrade } = dashboard;
 
     if (!isReady || !user) {
         return <main className="p-8 text-white">Loading...</main>;
@@ -501,17 +180,12 @@ export default function DashboardPage() {
                                     ))}
                                 </div>
                             </div>
-                            <div className="rounded-3xl border border-white/10 bg-slate-950/30 p-5 lg:col-span-2">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-semibold">Wallet summary</h3>
-                                    <span className="text-sm text-gray-300">{transactionAnalytics.activeAssets} active assets</span>
-                                </div>
-                                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                                    <div><p className="text-sm text-gray-400">Current value</p><p className="mt-1 text-2xl font-bold">${portfolioValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}</p></div>
-                                    <div><p className="text-sm text-gray-400">Invested</p><p className="mt-1 text-2xl font-bold">${investedValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}</p></div>
-                                    <div><p className="text-sm text-gray-400">Allocation leader</p><p className="mt-1 text-2xl font-bold">{portfolioAssets.toSorted((a, b) => b.allocation - a.allocation)[0]?.symbol ?? "-"}</p></div>
-                                </div>
-                            </div>
+                            <PortfolioOverview
+                                activeAssets={transactionAnalytics.activeAssets}
+                                invested={investedValue}
+                                leader={[...portfolioAssets].sort((a, b) => b.allocation - a.allocation)[0]?.symbol ?? "-"}
+                                value={portfolioValue}
+                            />
                         </div>
                     )}
 
@@ -573,19 +247,7 @@ export default function DashboardPage() {
                 </div>
 
                 <aside className="space-y-6">
-                    <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold">Watchlist</h3>
-                            <span className="text-xs uppercase tracking-[0.2em] text-blue-200">Live</span>
-                        </div>
-                        <input
-                            aria-label="Search watchlist assets"
-                            className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/40"
-                            onChange={(event) => setWatchlistSearch(event.target.value)}
-                            placeholder="Search coins"
-                            value={watchlistSearch}
-                        />
-                        <div className="mt-5 space-y-3">
+                    <Watchlist onSearchChange={setWatchlistSearch} search={watchlistSearch}>
                             {watchlistAssets.filter((asset) => searchableAssets.some((candidate) => candidate.id === asset.id)).map((asset) => {
                                 const isWatched = watchlist.includes(asset.id);
 
@@ -614,11 +276,10 @@ export default function DashboardPage() {
                                     </div>
                                 );
                             })}
-                        </div>
                         {watchlistMessage && (
                             <p className="mt-3 text-sm text-emerald-200">{watchlistMessage}</p>
                         )}
-                    </div>
+                    </Watchlist>
 
                     <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
                         <h3 className="text-lg font-semibold">Market movers</h3>
@@ -667,7 +328,7 @@ export default function DashboardPage() {
 
                     <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
                         <h3 className="text-lg font-semibold">Transaction history</h3>
-                        <div className="mt-5 grid grid-cols-2 gap-3">
+                        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div className="rounded-2xl bg-slate-950/40 p-3">
                                 <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Total trade volume</p>
                                 <p className="mt-2 text-lg font-semibold text-white">${transactionAnalytics.totalVolume.toLocaleString("en-US", { maximumFractionDigits: 0 })}</p>
@@ -712,7 +373,7 @@ export default function DashboardPage() {
                         </div>
                         <form className="mt-5 space-y-4" onSubmit={handleTrade}>
                             <div className="flex rounded-full border border-white/10 bg-slate-950/40 p-1" role="group" aria-label="Trade type">
-                                {(["buy", "sell"] as TradeType[]).map((type) => (
+                                {(["buy", "sell"] as ("buy" | "sell")[]).map((type) => (
                                     <button
                                         key={type}
                                         className={`flex-1 rounded-full px-3 py-2 text-sm font-medium capitalize transition ${tradeType === type ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-white/10"}`}
@@ -727,7 +388,7 @@ export default function DashboardPage() {
                                 Asset
                                 <select
                                     className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3 text-white outline-none focus:border-blue-400"
-                                    onChange={(event) => setSelectedAssetId(event.target.value as Asset["id"])}
+                                    onChange={(event) => setSelectedAssetId(event.target.value as "bitcoin" | "ethereum" | "litecoin")}
                                     value={selectedAssetId}
                                 >
                                     {portfolioAssets.map((asset) => (

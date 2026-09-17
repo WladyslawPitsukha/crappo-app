@@ -110,8 +110,8 @@ const GrowProfit: React.FC = () => {
     }, [requestNumber]);
 
     return (
-        <div className="bg-custom w-full rounded-lg p-10" aria-live="polite">
-            <table className="w-full border-separate border-spacing-y-2 text-left">
+        <div className="bg-custom w-full overflow-x-auto rounded-lg p-4 sm:p-10" aria-live="polite">
+            <table className="w-full min-w-[520px] border-separate border-spacing-y-2 text-left">
                 <thead>
                     <MarketTableHeader />
                 </thead>

@@ -2,7 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import * as echarts from "echarts";
-import { getHistoricalMarketData, type ChartRange } from "@/utils/historicalMarket";
+import { useHistoricalChart } from "@/hooks/useHistoricalChart";
+import type { ChartRange } from "@/utils/historicalMarket";
 
 type MarketActivityChartProps = {
     coinName: string;
@@ -20,7 +21,8 @@ const coinIds: Record<string, string> = {
 export default function MarketActivityChart({ coinName }: MarketActivityChartProps) {
     const chartRef = useRef<HTMLDivElement>(null);
     const [range, setRange] = useState<ChartRange>("1W");
-    const [error, setError] = useState<string | null>(null);
+    const coinId = coinIds[coinName.toLowerCase()] ?? coinName.toLowerCase();
+    const { prices, error } = useHistoricalChart(coinId, range);
 
     useEffect(() => {
         const chartElement = chartRef.current;
@@ -30,51 +32,23 @@ export default function MarketActivityChart({ coinName }: MarketActivityChartPro
         }
 
         const chart = echarts.init(chartElement);
-        const controller = new AbortController();
-        const coinId = coinIds[coinName.toLowerCase()] ?? coinName.toLowerCase();
-
-        const loadHistory = async () => {
-            try {
-                setError(null);
-                const prices = await getHistoricalMarketData(coinId, range, controller.signal);
-                const points = prices.map(([timestamp, price]) => [new Date(timestamp).toLocaleDateString([], { month: "short", day: "numeric" }), price] as const);
-
-                chart.setOption({
-                    title: { text: `${range} ${coinName} Price History` },
-                    tooltip: { trigger: "axis" },
-                    xAxis: { type: "category", data: points.map(([label]) => label) },
-                    yAxis: { type: "value", name: "USD" },
-                    series: [{
-                        name: `${coinName} price`,
-                        type: "line",
-                        smooth: true,
-                        data: points.map(([, price]) => price),
-                    }],
-                });
-            } catch {
-                if (!controller.signal.aborted) {
-                    chart.setOption({
-                        title: { text: `${coinName} history unavailable` },
-                        xAxis: { show: false },
-                        yAxis: { show: false },
-                        series: [],
-                    });
-                    setError("Historical data is temporarily unavailable.");
-                }
-            }
-        };
-
-        void loadHistory();
+        const points = prices.map(([timestamp, price]) => [new Date(timestamp).toLocaleDateString([], { month: "short", day: "numeric" }), price] as const);
+        chart.setOption({
+            title: { text: `${range} ${coinName} Price History` },
+            tooltip: { trigger: "axis" },
+            xAxis: { type: "category", data: points.map(([label]) => label) },
+            yAxis: { type: "value", name: "USD" },
+            series: [{ name: `${coinName} price`, type: "line", smooth: true, data: points.map(([, price]) => price) }],
+        });
 
         const resizeObserver = new ResizeObserver(() => chart.resize());
         resizeObserver.observe(chartElement);
 
         return () => {
-            controller.abort();
             resizeObserver.disconnect();
             chart.dispose();
         };
-    }, [coinName, range]);
+    }, [coinName, prices, range]);
 
     return (
         <section aria-label={`${coinName} historical price chart`}>
