@@ -91,6 +91,29 @@ describe("dashboard interactive widgets", () => {
         expect(screen.getByText(/bitcoin is in your watchlist/i)).toBeInTheDocument();
     });
 
+    it("filters watchlist assets and opens transaction details", async () => {
+        const user = userEvent.setup();
+        localStorage.setItem("crappo-portfolio-user@example.com", JSON.stringify({
+            holdings: {},
+            transactions: [{
+                id: "tx-detail",
+                type: "buy",
+                symbol: "BTC",
+                quantity: 0.25,
+                price: 70000,
+                total: 17500,
+                createdAt: new Date().toISOString(),
+            }],
+        }));
+
+        render(<DashboardPage />);
+        await user.type(screen.getByRole("textbox", { name: "Search watchlist assets" }), "lite");
+        expect(screen.queryByText("Bitcoin")).not.toBeInTheDocument();
+        expect(screen.getByText("Litecoin")).toBeInTheDocument();
+        await user.click(screen.getAllByText(/0.25 BTC for/i)[0]);
+        expect(screen.getByRole("dialog")).toHaveTextContent(/transaction details/i);
+    });
+
     it("shows transaction history and analytics from persisted portfolio activity", async () => {
         localStorage.setItem("crappo-portfolio-user@example.com", JSON.stringify({
             holdings: {
@@ -121,6 +144,8 @@ describe("dashboard interactive widgets", () => {
         await waitFor(() => expect(screen.getByText("Buy asset")).toBeInTheDocument());
         await user.type(screen.getByPlaceholderText("0.00"), "0.5");
         await user.click(screen.getByText("Buy asset"));
+        expect(screen.getByRole("dialog")).toHaveTextContent(/confirm buy/i);
+        await user.click(screen.getByText("Confirm trade"));
 
         expect(screen.getAllByText(/0.5 BTC for/i).length).toBeGreaterThan(0);
         expect(localStorage.getItem("crappo-portfolio-user@example.com")).toContain('"quantity":0.5');

@@ -5,12 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { CoinGeckoError, getCoinMarketData, type CoinMarketData } from "@/utils/coinGecko";
-import { createBackendTrade, getBackendPortfolio, upsertBackendHolding } from "@/utils/backendApi";
+import { createBackendTrade, getBackendPortfolio, getMarketInsights, upsertBackendHolding, type MarketInsights } from "@/utils/backendApi";
+import { assetConfig, type AssetId } from "@/data/assets";
+import { useWatchlist } from "@/hooks/useWatchlist";
 
 type DashboardTab = "Overview" | "Performance" | "Portfolio";
 
 type Asset = {
-    id: "bitcoin" | "ethereum" | "litecoin";
+    id: AssetId;
     name: string;
     symbol: string;
     price: number;
@@ -39,12 +41,6 @@ type PortfolioTransaction = {
     createdAt: string;
 };
 
-const assetConfig = [
-    { id: "bitcoin", name: "Bitcoin", symbol: "BTC" },
-    { id: "ethereum", name: "Ethereum", symbol: "ETH" },
-    { id: "litecoin", name: "Litecoin", symbol: "LTC" },
-] as const;
-
 const marketSignals = [
     { label: "24h Volume", value: "$0", tone: "blue" },
     { label: "BTC Dominance", value: "52.1%", tone: "violet" },
@@ -70,12 +66,16 @@ export default function DashboardPage() {
     const [requestNumber, setRequestNumber] = useState(0);
     const [holdings, setHoldings] = useState<Record<string, Holding>>({});
     const [transactions, setTransactions] = useState<PortfolioTransaction[]>([]);
-    const [watchlist, setWatchlist] = useState<Asset["id"][]>([]);
     const [watchlistMessage, setWatchlistMessage] = useState<string | null>(null);
+    const [watchlistSearch, setWatchlistSearch] = useState("");
+    const [marketInsights, setMarketInsights] = useState<MarketInsights | null>(null);
+    const [pendingTrade, setPendingTrade] = useState<{ type: TradeType; asset: Asset; quantity: number } | null>(null);
+    const [selectedTransaction, setSelectedTransaction] = useState<PortfolioTransaction | null>(null);
     const [tradeType, setTradeType] = useState<TradeType>("buy");
     const [selectedAssetId, setSelectedAssetId] = useState<Asset["id"]>("bitcoin");
     const [tradeQuantity, setTradeQuantity] = useState("");
     const [tradeError, setTradeError] = useState<string | null>(null);
+    const { watchlist, toggleWatchlist } = useWatchlist(userEmail);
 
     useEffect(() => {
         if (isReady && !user) {
@@ -141,22 +141,8 @@ export default function DashboardPage() {
     }, [userEmail]);
 
     useEffect(() => {
-        if (!userEmail) {
-            return;
-        }
-
-        try {
-            const storedWatchlist = localStorage.getItem(`crappo-watchlist-${userEmail}`);
-            if (!storedWatchlist) {
-                setWatchlist([]);
-                return;
-            }
-
-            const parsedWatchlist = JSON.parse(storedWatchlist) as Asset["id"][];
-            setWatchlist(Array.isArray(parsedWatchlist) ? parsedWatchlist : []);
-        } catch {
-            setWatchlist([]);
-        }
+        if (!userEmail) return;
+        void getMarketInsights().then(setMarketInsights).catch(() => setMarketInsights(null));
     }, [userEmail]);
 
     useEffect(() => {
@@ -277,6 +263,8 @@ export default function DashboardPage() {
         });
     }, [marketData, watchlist]);
 
+    const searchableAssets = useMemo(() => assetConfig.filter((asset) => `${asset.name} ${asset.symbol}`.toLowerCase().includes(watchlistSearch.toLowerCase())), [watchlistSearch]);
+
     const persistPortfolio = (nextHoldings: Record<string, Holding>, nextTransactions: PortfolioTransaction[]) => {
         if (!user) {
             return;
@@ -288,25 +276,14 @@ export default function DashboardPage() {
         }));
     };
 
-    const toggleWatchlist = (assetId: Asset["id"]) => {
+    const handleWatchlistToggle = async (assetId: Asset["id"]) => {
         const asset = assetConfig.find((item) => item.id === assetId);
         if (!asset) {
             return;
         }
-
-        setWatchlist((currentWatchlist) => {
-            const isAlreadyWatched = currentWatchlist.includes(assetId);
-            const nextWatchlist = isAlreadyWatched
-                ? currentWatchlist.filter((id) => id !== assetId)
-                : [...currentWatchlist, assetId];
-
-            if (userEmail) {
-                localStorage.setItem(`crappo-watchlist-${userEmail}`, JSON.stringify(nextWatchlist));
-            }
-
-            setWatchlistMessage(isAlreadyWatched ? `${asset.name} was removed from your watchlist.` : `${asset.name} is in your watchlist.`);
-            return nextWatchlist;
-        });
+        const isAlreadyWatched = watchlist.includes(assetId);
+        await toggleWatchlist(assetId);
+        setWatchlistMessage(isAlreadyWatched ? `${asset.name} was removed from your watchlist.` : `${asset.name} is in your watchlist.`);
     };
 
     const handleTrade = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -326,10 +303,17 @@ export default function DashboardPage() {
             return;
         }
 
-        const nextQuantity = tradeType === "buy"
+        setPendingTrade({ type: tradeType, asset: selectedAsset, quantity });
+    };
+
+    const confirmTrade = async () => {
+        if (!pendingTrade) return;
+        const { asset: selectedAsset, quantity, type: confirmedTradeType } = pendingTrade;
+        const currentHolding = holdings[selectedAsset.id] ?? { quantity: 0, averageCost: 0 };
+        const nextQuantity = confirmedTradeType === "buy"
             ? currentHolding.quantity + quantity
             : currentHolding.quantity - quantity;
-        const nextAverageCost = tradeType === "buy"
+        const nextAverageCost = confirmedTradeType === "buy"
             ? ((currentHolding.quantity * currentHolding.averageCost) + (quantity * selectedAsset.price)) / nextQuantity
             : nextQuantity > 0 ? currentHolding.averageCost : 0;
         const nextHoldings = { ...holdings };
@@ -342,7 +326,7 @@ export default function DashboardPage() {
 
         const nextTransactions = [{
             id: `${Date.now()}-${selectedAssetId}`,
-            type: tradeType,
+            type: confirmedTradeType,
             symbol: selectedAsset.symbol,
             quantity,
             price: selectedAsset.price,
@@ -377,6 +361,7 @@ export default function DashboardPage() {
 
         setTradeQuantity("");
         setTradeError(null);
+        setPendingTrade(null);
     };
 
     if (!isReady || !user) {
@@ -516,6 +501,17 @@ export default function DashboardPage() {
                                     ))}
                                 </div>
                             </div>
+                            <div className="rounded-3xl border border-white/10 bg-slate-950/30 p-5 lg:col-span-2">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-lg font-semibold">Wallet summary</h3>
+                                    <span className="text-sm text-gray-300">{transactionAnalytics.activeAssets} active assets</span>
+                                </div>
+                                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                    <div><p className="text-sm text-gray-400">Current value</p><p className="mt-1 text-2xl font-bold">${portfolioValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}</p></div>
+                                    <div><p className="text-sm text-gray-400">Invested</p><p className="mt-1 text-2xl font-bold">${investedValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}</p></div>
+                                    <div><p className="text-sm text-gray-400">Allocation leader</p><p className="mt-1 text-2xl font-bold">{portfolioAssets.toSorted((a, b) => b.allocation - a.allocation)[0]?.symbol ?? "-"}</p></div>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -582,8 +578,15 @@ export default function DashboardPage() {
                             <h3 className="text-lg font-semibold">Watchlist</h3>
                             <span className="text-xs uppercase tracking-[0.2em] text-blue-200">Live</span>
                         </div>
+                        <input
+                            aria-label="Search watchlist assets"
+                            className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/40"
+                            onChange={(event) => setWatchlistSearch(event.target.value)}
+                            placeholder="Search coins"
+                            value={watchlistSearch}
+                        />
                         <div className="mt-5 space-y-3">
-                            {watchlistAssets.map((asset) => {
+                            {watchlistAssets.filter((asset) => searchableAssets.some((candidate) => candidate.id === asset.id)).map((asset) => {
                                 const isWatched = watchlist.includes(asset.id);
 
                                 return (
@@ -602,7 +605,7 @@ export default function DashboardPage() {
                                             <button
                                                 aria-label={isWatched ? `Remove ${asset.name} from watchlist` : `Add ${asset.name} to watchlist`}
                                                 className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.15em] text-white transition hover:bg-white hover:text-slate-900"
-                                                onClick={() => toggleWatchlist(asset.id)}
+                                                onClick={() => void handleWatchlistToggle(asset.id)}
                                                 type="button"
                                             >
                                                 {isWatched ? "Saved" : "Add"}
@@ -615,6 +618,30 @@ export default function DashboardPage() {
                         {watchlistMessage && (
                             <p className="mt-3 text-sm text-emerald-200">{watchlistMessage}</p>
                         )}
+                    </div>
+
+                    <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
+                        <h3 className="text-lg font-semibold">Market movers</h3>
+                        <div className="mt-4 space-y-3">
+                            {(marketInsights?.movers ?? []).map((mover) => (
+                                <div className="flex items-center justify-between rounded-2xl bg-slate-950/40 p-3" key={mover.symbol}>
+                                    <span>{mover.name} <span className="text-xs text-gray-400">{mover.symbol}</span></span>
+                                    <span className={mover.change >= 0 ? "text-emerald-300" : "text-rose-300"}>{mover.change >= 0 ? "+" : ""}{mover.change}%</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
+                        <h3 className="text-lg font-semibold">Market news</h3>
+                        <div className="mt-4 space-y-3">
+                            {(marketInsights?.news ?? []).map((item) => (
+                                <article className="rounded-2xl bg-slate-950/40 p-3" key={item.title}>
+                                    <p className="text-sm font-medium">{item.title}</p>
+                                    <p className="mt-1 text-xs text-gray-400">{item.source} · {item.sentiment}</p>
+                                </article>
+                            ))}
+                        </div>
                     </div>
 
                     <div className="rounded-[30px] border border-white/10 bg-gradient-to-br from-violet-500/20 to-blue-500/10 p-5">
@@ -661,7 +688,7 @@ export default function DashboardPage() {
 
                         <div className="mt-5 space-y-3">
                             {transactions.length > 0 ? transactions.slice(0, 3).map((transaction) => (
-                                <div key={transaction.id} className="rounded-2xl bg-slate-950/40 p-3">
+                                <button key={transaction.id} className="w-full rounded-2xl bg-slate-950/40 p-3 text-left transition hover:bg-slate-900/70 focus:outline-none focus:ring-2 focus:ring-blue-300" onClick={() => setSelectedTransaction(transaction)} type="button">
                                     <div className="flex items-center justify-between gap-3">
                                         <span className={`rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.2em] ${transaction.type === "buy" ? "bg-emerald-500/15 text-emerald-200" : "bg-rose-500/15 text-rose-200"}`}>
                                             {transaction.type}
@@ -671,7 +698,7 @@ export default function DashboardPage() {
                                     <p className="mt-2 text-sm text-gray-200">
                                         {transaction.quantity} {transaction.symbol} for ${transaction.total.toLocaleString("en-US", { maximumFractionDigits: 2 })}
                                     </p>
-                                </div>
+                                </button>
                             )) : (
                                 <p className="text-sm text-gray-300">No transactions yet.</p>
                             )}
@@ -736,6 +763,24 @@ export default function DashboardPage() {
                     </div>
                 </aside>
             </section>
+            {pendingTrade && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="trade-confirmation-title">
+                    <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+                        <h2 className="text-xl font-semibold" id="trade-confirmation-title">Confirm {pendingTrade.type}</h2>
+                        <p className="mt-3 text-gray-300">{pendingTrade.quantity} {pendingTrade.asset.symbol} at ${pendingTrade.asset.price.toLocaleString()} each.</p>
+                        <div className="mt-6 flex gap-3"><button className="flex-1 rounded-full border border-white/20 px-4 py-2" onClick={() => setPendingTrade(null)} type="button">Cancel</button><button className="flex-1 rounded-full bg-blue-600 px-4 py-2" onClick={() => void confirmTrade()} type="button">Confirm trade</button></div>
+                    </div>
+                </div>
+            )}
+            {selectedTransaction && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="transaction-detail-title">
+                    <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+                        <h2 className="text-xl font-semibold" id="transaction-detail-title">Transaction details</h2>
+                        <dl className="mt-4 space-y-3 text-sm"><div className="flex justify-between"><dt className="text-gray-400">Type</dt><dd>{selectedTransaction.type.toUpperCase()}</dd></div><div className="flex justify-between"><dt className="text-gray-400">Asset</dt><dd>{selectedTransaction.symbol}</dd></div><div className="flex justify-between"><dt className="text-gray-400">Quantity</dt><dd>{selectedTransaction.quantity}</dd></div><div className="flex justify-between"><dt className="text-gray-400">Total</dt><dd>${selectedTransaction.total.toLocaleString("en-US", { maximumFractionDigits: 2 })}</dd></div></dl>
+                        <button className="mt-6 w-full rounded-full bg-blue-600 px-4 py-2" onClick={() => setSelectedTransaction(null)} type="button">Close</button>
+                    </div>
+                </div>
+            )}
         </main>
     );
 }
