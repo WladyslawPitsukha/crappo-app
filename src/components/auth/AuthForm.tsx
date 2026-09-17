@@ -14,14 +14,23 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
+    const [emailError, setEmailError] = useState("");
+    const [passwordError, setPasswordError] = useState("");
     const isRegister = mode === "register";
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setError("");
+        setEmailError("");
+        setPasswordError("");
+
+        if (!email.trim()) {
+            setEmailError("Email is required.");
+            return;
+        }
 
         if (password.length < 8) {
-            setError("Password must contain at least 8 characters.");
+            setPasswordError("Password must contain at least 8 characters.");
             return;
         }
 
@@ -49,8 +58,8 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
                     <div>
                         <label className="block text-sm font-medium text-slate-700" htmlFor="email">Email</label>
                         <input
-                            aria-invalid={Boolean(error && !email)}
-                            aria-describedby={error ? "auth-form-error" : undefined}
+                            aria-invalid={Boolean(emailError)}
+                            aria-describedby={emailError ? "email-error" : undefined}
                             className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-3 text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
                             id="email"
                             name="email"
@@ -58,14 +67,15 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
                             autoComplete="email"
                             required
                             value={email}
-                            onChange={(event) => setEmail(event.target.value)}
+                            onChange={(event) => { setEmail(event.target.value); setEmailError(""); }}
                         />
+                        {emailError && <p className="mt-1 text-sm font-medium text-red-700" id="email-error" role="alert">{emailError}</p>}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700" htmlFor="password">Password</label>
                         <input
-                            aria-invalid={Boolean(error && password.length > 0)}
-                            aria-describedby={error ? "auth-form-error" : undefined}
+                            aria-invalid={Boolean(passwordError)}
+                            aria-describedby={passwordError ? "password-error" : undefined}
                             className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-3 text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
                             id="password"
                             name="password"
@@ -74,10 +84,11 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
                             minLength={8}
                             required
                             value={password}
-                            onChange={(event) => setPassword(event.target.value)}
+                            onChange={(event) => { setPassword(event.target.value); setPasswordError(""); }}
                         />
+                        {passwordError && <p className="mt-1 text-sm font-medium text-red-700" id="password-error" role="alert">{passwordError}</p>}
                     </div>
-                    {error && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" id="auth-form-error" role="alert">{error}</p>}
+                    {error && <p className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-800" id="auth-form-error" role="alert" aria-live="assertive">{error}</p>}
                     <button className="w-full rounded-xl bg-blue-600 px-4 py-3 font-medium text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300" type="submit">
                         {isRegister ? "Register" : "Login"}
                     </button>

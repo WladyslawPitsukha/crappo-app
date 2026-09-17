@@ -32,6 +32,7 @@ export default function FormMining() {
         <form onSubmit={handleSubmit} className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 lg:w-auto">
             <input 
                 aria-describedby="mining-form-message"
+                aria-invalid={hasError}
                 required
                 type="email"
                 value={email}
@@ -49,9 +50,10 @@ export default function FormMining() {
             </button>
             {message && (
                 <p
-                    className={hasError ? "text-sm text-red-100" : "text-sm text-white"}
+                    className={hasError ? "text-sm font-medium text-red-100" : "text-sm font-medium text-white"}
                     id="mining-form-message"
                     role={hasError ? "alert" : "status"}
+                    aria-live={hasError ? "assertive" : "polite"}
                 >
                     {message}
                 </p>
