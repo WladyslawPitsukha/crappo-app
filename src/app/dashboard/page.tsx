@@ -39,25 +39,11 @@ type PortfolioTransaction = {
     createdAt: string;
 };
 
-type ActivityItem = {
-    type: string;
-    coin: string;
-    value: string;
-    time: string;
-};
-
 const assetConfig = [
     { id: "bitcoin", name: "Bitcoin", symbol: "BTC" },
     { id: "ethereum", name: "Ethereum", symbol: "ETH" },
     { id: "litecoin", name: "Litecoin", symbol: "LTC" },
 ] as const;
-
-const activityFeed: ActivityItem[] = [
-    { type: "Buy", coin: "BTC", value: "+0.32 BTC", time: "2 hours ago" },
-    { type: "Sell", coin: "ETH", value: "-1.2 ETH", time: "5 hours ago" },
-    { type: "Stake", coin: "SOL", value: "+420 SOL", time: "Today" },
-    { type: "Transfer", coin: "ADA", value: "+$2,140", time: "Yesterday" },
-];
 
 const marketSignals = [
     { label: "24h Volume", value: "$0", tone: "blue" },
@@ -73,8 +59,6 @@ const performanceStats = [
     { label: "Active trades", value: "14", change: "3 new" },
 ];
 
-const TOKEN_KEY = "crappo-access-token";
-
 export default function DashboardPage() {
     const { isReady, logout, user } = useAuth();
     const router = useRouter();
@@ -86,6 +70,8 @@ export default function DashboardPage() {
     const [requestNumber, setRequestNumber] = useState(0);
     const [holdings, setHoldings] = useState<Record<string, Holding>>({});
     const [transactions, setTransactions] = useState<PortfolioTransaction[]>([]);
+    const [watchlist, setWatchlist] = useState<Asset["id"][]>([]);
+    const [watchlistMessage, setWatchlistMessage] = useState<string | null>(null);
     const [tradeType, setTradeType] = useState<TradeType>("buy");
     const [selectedAssetId, setSelectedAssetId] = useState<Asset["id"]>("bitcoin");
     const [tradeQuantity, setTradeQuantity] = useState("");
@@ -155,15 +141,32 @@ export default function DashboardPage() {
     }, [userEmail]);
 
     useEffect(() => {
-        const token = localStorage.getItem(TOKEN_KEY);
+        if (!userEmail) {
+            return;
+        }
 
-        if (!token || !userEmail) {
+        try {
+            const storedWatchlist = localStorage.getItem(`crappo-watchlist-${userEmail}`);
+            if (!storedWatchlist) {
+                setWatchlist([]);
+                return;
+            }
+
+            const parsedWatchlist = JSON.parse(storedWatchlist) as Asset["id"][];
+            setWatchlist(Array.isArray(parsedWatchlist) ? parsedWatchlist : []);
+        } catch {
+            setWatchlist([]);
+        }
+    }, [userEmail]);
+
+    useEffect(() => {
+        if (!userEmail) {
             return;
         }
 
         const loadBackendPortfolio = async () => {
             try {
-                const portfolio = await getBackendPortfolio(token);
+                const portfolio = await getBackendPortfolio();
                 const nextHoldings: Record<string, Holding> = {};
 
                 for (const holding of portfolio.holdings) {
@@ -229,6 +232,50 @@ export default function DashboardPage() {
         0,
     ), [portfolioAssets]);
     const portfolioPnl = portfolioValue - investedValue;
+    const recentActivity = useMemo(() => transactions.slice(0, 4).map((transaction) => ({
+        type: transaction.type,
+        coin: transaction.symbol,
+        value: `${transaction.type === "buy" ? "+" : "-"}${transaction.quantity} ${transaction.symbol}`,
+        time: new Date(transaction.createdAt).toLocaleString([], {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+        }),
+    })), [transactions]);
+    const transactionAnalytics = useMemo(() => {
+        const totalVolume = transactions.reduce((sum, transaction) => sum + transaction.total, 0);
+        const buyCount = transactions.filter((transaction) => transaction.type === "buy").length;
+        const sellCount = transactions.filter((transaction) => transaction.type === "sell").length;
+        const activeAssets = new Set(transactions.map((transaction) => transaction.symbol)).size;
+
+        return {
+            totalVolume,
+            averageTrade: transactions.length > 0 ? totalVolume / transactions.length : 0,
+            buyCount,
+            sellCount,
+            activeAssets,
+        };
+    }, [transactions]);
+    const watchlistAssets = useMemo(() => {
+        const ids = watchlist.length > 0 ? watchlist : assetConfig.map((asset) => asset.id);
+
+        return ids.map((assetId) => {
+            const assetMeta = assetConfig.find((asset) => asset.id === assetId) ?? assetConfig[0];
+            const currentMarketData = marketData?.[assetId];
+
+            return {
+                ...assetMeta,
+                price: currentMarketData?.price ?? 0,
+                change: currentMarketData?.change24h ?? 0,
+                value: 0,
+                quantity: 0,
+                averageCost: 0,
+                allocation: 0,
+                trend: (currentMarketData?.change24h ?? 0) >= 0 ? "up" : "down",
+            };
+        });
+    }, [marketData, watchlist]);
 
     const persistPortfolio = (nextHoldings: Record<string, Holding>, nextTransactions: PortfolioTransaction[]) => {
         if (!user) {
@@ -239,6 +286,27 @@ export default function DashboardPage() {
             holdings: nextHoldings,
             transactions: nextTransactions,
         }));
+    };
+
+    const toggleWatchlist = (assetId: Asset["id"]) => {
+        const asset = assetConfig.find((item) => item.id === assetId);
+        if (!asset) {
+            return;
+        }
+
+        setWatchlist((currentWatchlist) => {
+            const isAlreadyWatched = currentWatchlist.includes(assetId);
+            const nextWatchlist = isAlreadyWatched
+                ? currentWatchlist.filter((id) => id !== assetId)
+                : [...currentWatchlist, assetId];
+
+            if (userEmail) {
+                localStorage.setItem(`crappo-watchlist-${userEmail}`, JSON.stringify(nextWatchlist));
+            }
+
+            setWatchlistMessage(isAlreadyWatched ? `${asset.name} was removed from your watchlist.` : `${asset.name} is in your watchlist.`);
+            return nextWatchlist;
+        });
     };
 
     const handleTrade = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -286,18 +354,16 @@ export default function DashboardPage() {
         setTransactions(nextTransactions);
         persistPortfolio(nextHoldings, nextTransactions);
 
-        const token = localStorage.getItem(TOKEN_KEY);
-
-        if (token) {
+        {
             try {
-                await createBackendTrade(token, {
+                await createBackendTrade({
                     symbol: selectedAsset.symbol,
                     type: tradeType,
                     quantity,
                     price_per_coin: selectedAsset.price,
                     total_value: quantity * selectedAsset.price,
                 });
-                await upsertBackendHolding(token, {
+                await upsertBackendHolding({
                     symbol: selectedAsset.symbol,
                     name: selectedAsset.name,
                     quantity: nextQuantity,
@@ -517,27 +583,44 @@ export default function DashboardPage() {
                             <span className="text-xs uppercase tracking-[0.2em] text-blue-200">Live</span>
                         </div>
                         <div className="mt-5 space-y-3">
-                            {portfolioAssets.map((asset) => (
-                                <div key={`${asset.symbol}-watch`} className="flex items-center justify-between rounded-2xl bg-slate-950/40 p-3">
-                                    <div>
-                                        <p className="font-medium">{asset.symbol}</p>
-                                        <p className="text-xs text-gray-400">{asset.name}</p>
+                            {watchlistAssets.map((asset) => {
+                                const isWatched = watchlist.includes(asset.id);
+
+                                return (
+                                    <div key={`${asset.symbol}-watch`} className="flex items-center justify-between gap-2 rounded-2xl bg-slate-950/40 p-3">
+                                        <div>
+                                            <p className="font-medium">{asset.symbol}</p>
+                                            <p className="text-xs text-gray-400">{asset.name}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-right">
+                                            <div>
+                                                <p className="font-medium">${asset.price.toLocaleString()}</p>
+                                                <p className={`text-xs ${asset.change > 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                                                    {asset.change > 0 ? "+" : ""}{asset.change}%
+                                                </p>
+                                            </div>
+                                            <button
+                                                aria-label={isWatched ? `Remove ${asset.name} from watchlist` : `Add ${asset.name} to watchlist`}
+                                                className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.15em] text-white transition hover:bg-white hover:text-slate-900"
+                                                onClick={() => toggleWatchlist(asset.id)}
+                                                type="button"
+                                            >
+                                                {isWatched ? "Saved" : "Add"}
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="font-medium">${asset.price.toLocaleString()}</p>
-                                        <p className={`text-xs ${asset.change > 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                                            {asset.change > 0 ? "+" : ""}{asset.change}%
-                                        </p>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
+                        {watchlistMessage && (
+                            <p className="mt-3 text-sm text-emerald-200">{watchlistMessage}</p>
+                        )}
                     </div>
 
                     <div className="rounded-[30px] border border-white/10 bg-gradient-to-br from-violet-500/20 to-blue-500/10 p-5">
                         <h3 className="text-lg font-semibold">Recent activity</h3>
                         <div className="mt-5 space-y-3">
-                            {activityFeed.map((entry) => (
+                            {recentActivity.length > 0 ? recentActivity.map((entry) => (
                                 <div key={`${entry.coin}-${entry.time}`} className="rounded-2xl bg-slate-950/30 p-3">
                                     <div className="flex items-center justify-between gap-3">
                                         <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-blue-200">
@@ -549,7 +632,49 @@ export default function DashboardPage() {
                                         {entry.coin} <span className="font-semibold text-white">{entry.value}</span>
                                     </p>
                                 </div>
-                            ))}
+                            )) : (
+                                <p className="text-sm text-gray-300">No recent trades yet.</p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
+                        <h3 className="text-lg font-semibold">Transaction history</h3>
+                        <div className="mt-5 grid grid-cols-2 gap-3">
+                            <div className="rounded-2xl bg-slate-950/40 p-3">
+                                <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Total trade volume</p>
+                                <p className="mt-2 text-lg font-semibold text-white">${transactionAnalytics.totalVolume.toLocaleString("en-US", { maximumFractionDigits: 0 })}</p>
+                            </div>
+                            <div className="rounded-2xl bg-slate-950/40 p-3">
+                                <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Avg trade</p>
+                                <p className="mt-2 text-lg font-semibold text-white">${transactionAnalytics.averageTrade.toLocaleString("en-US", { maximumFractionDigits: 0 })}</p>
+                            </div>
+                            <div className="rounded-2xl bg-slate-950/40 p-3">
+                                <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Buys</p>
+                                <p className="mt-2 text-lg font-semibold text-emerald-300">{transactionAnalytics.buyCount}</p>
+                            </div>
+                            <div className="rounded-2xl bg-slate-950/40 p-3">
+                                <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Sells</p>
+                                <p className="mt-2 text-lg font-semibold text-rose-300">{transactionAnalytics.sellCount}</p>
+                            </div>
+                        </div>
+
+                        <div className="mt-5 space-y-3">
+                            {transactions.length > 0 ? transactions.slice(0, 3).map((transaction) => (
+                                <div key={transaction.id} className="rounded-2xl bg-slate-950/40 p-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className={`rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.2em] ${transaction.type === "buy" ? "bg-emerald-500/15 text-emerald-200" : "bg-rose-500/15 text-rose-200"}`}>
+                                            {transaction.type}
+                                        </span>
+                                        <span className="text-xs text-gray-400">{new Date(transaction.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
+                                    </div>
+                                    <p className="mt-2 text-sm text-gray-200">
+                                        {transaction.quantity} {transaction.symbol} for ${transaction.total.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                                    </p>
+                                </div>
+                            )) : (
+                                <p className="text-sm text-gray-300">No transactions yet.</p>
+                            )}
                         </div>
                     </div>
 

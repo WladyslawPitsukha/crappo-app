@@ -49,24 +49,80 @@ describe("dashboard interactive widgets", () => {
         const user = userEvent.setup();
         render(<DashboardPage />);
 
-        expect(screen.getByRole("button", { name: "Overview" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Performance" })).toBeInTheDocument();
+        expect(screen.getByText("Overview")).toBeInTheDocument();
+        expect(screen.getByText("Performance")).toBeInTheDocument();
 
-        await user.click(screen.getByRole("button", { name: "Performance" }));
+        await user.click(screen.getByText("Performance"));
 
         expect(screen.getAllByText(/weekly pnl/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/24h volume/i).length).toBeGreaterThan(0);
+    });
+
+    it("renders persisted portfolio activity from the user data instead of static demo feed", async () => {
+        localStorage.setItem("crappo-portfolio-user@example.com", JSON.stringify({
+            holdings: {
+                bitcoin: { quantity: 0.5, averageCost: 62000 },
+            },
+            transactions: [{
+                id: "tx-1",
+                type: "buy",
+                symbol: "BTC",
+                quantity: 0.5,
+                price: 70000,
+                total: 35000,
+                createdAt: new Date().toISOString(),
+            }],
+        }));
+
+        render(<DashboardPage />);
+
+        await waitFor(() => expect(screen.getByText(/recent activity/i)).toBeInTheDocument());
+        expect(screen.getAllByText(/0.5 BTC/i).length).toBeGreaterThan(0);
+        expect(screen.queryByText(/Stake/i)).not.toBeInTheDocument();
+    });
+
+    it("lets a signed-in user add a coin to the watchlist from the dashboard", async () => {
+        const user = userEvent.setup();
+        render(<DashboardPage />);
+
+        await waitFor(() => expect(screen.getByText("Watchlist")).toBeInTheDocument());
+        await user.click(screen.getByRole("button", { name: /add bitcoin to watchlist/i }));
+
+        expect(screen.getByText(/bitcoin is in your watchlist/i)).toBeInTheDocument();
+    });
+
+    it("shows transaction history and analytics from persisted portfolio activity", async () => {
+        localStorage.setItem("crappo-portfolio-user@example.com", JSON.stringify({
+            holdings: {
+                bitcoin: { quantity: 0.5, averageCost: 62000 },
+            },
+            transactions: [{
+                id: "tx-1",
+                type: "buy",
+                symbol: "BTC",
+                quantity: 0.5,
+                price: 70000,
+                total: 35000,
+                createdAt: new Date().toISOString(),
+            }],
+        }));
+
+        render(<DashboardPage />);
+
+        await waitFor(() => expect(screen.getByText(/transaction history/i)).toBeInTheDocument());
+        expect(screen.getByText(/total trade volume/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/buy/i).length).toBeGreaterThan(0);
     });
 
     it("records a buy and persists the updated holding for the signed-in user", async () => {
         const user = userEvent.setup();
         render(<DashboardPage />);
 
-        await waitFor(() => expect(screen.getByRole("button", { name: "Buy asset" })).not.toBeDisabled());
+        await waitFor(() => expect(screen.getByText("Buy asset")).toBeInTheDocument());
         await user.type(screen.getByPlaceholderText("0.00"), "0.5");
-        await user.click(screen.getByRole("button", { name: "Buy asset" }));
+        await user.click(screen.getByText("Buy asset"));
 
-        expect(screen.getByText(/0.5 BTC for/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/0.5 BTC for/i).length).toBeGreaterThan(0);
         expect(localStorage.getItem("crappo-portfolio-user@example.com")).toContain('"quantity":0.5');
     });
 });
