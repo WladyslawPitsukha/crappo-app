@@ -2,39 +2,79 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import json
+import logging
+import time
 from secrets import token_urlsafe
 from urllib.error import URLError
 from urllib.request import urlopen
 from uuid import uuid4
 
 import jwt
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Response, status
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .auth import ALGORITHM, SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS, create_access_token, get_current_user, get_password_hash, verify_password
-from .config import settings
+from .config import settings, validate_settings
 from .database import Base, engine, get_db
 from .mailer import send_email
 from .models import PortfolioHolding, PortfolioTransaction, User, UserSession, WatchlistItem
 from .schemas import MarketCoin, MarketResponse, PasswordResetConfirm, PasswordResetRequest, PortfolioEntry, PortfolioHoldingRequest, PortfolioResponse, PortfolioTransactionRequest, PortfolioTransactionResponse, TokenResponse, UserLoginRequest, UserProfile, UserRegisterRequest, WatchlistItemRequest, WatchlistResponse
 
 Base.metadata.create_all(bind=engine)
+validate_settings()
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("crappo.api")
+
+if settings.sentry_dsn:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.1)
+    except ImportError:
+        logger.warning("SENTRY_DSN is configured but sentry-sdk is not installed")
 
 app = FastAPI(title="Crappo API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[settings.frontend_url],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+@app.middleware("http")
+async def request_logging(request: Request, call_next):
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("Unhandled request error method=%s path=%s", request.method, request.url.path)
+        raise
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    logger.info("request method=%s path=%s status=%s duration_ms=%.2f", request.method, request.url.path, response.status_code, elapsed_ms)
+    return response
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled application error path=%s", request.url.path, exc_info=exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/health/ready")
+def readiness_check(db: Session = Depends(get_db)) -> dict[str, str]:
+    db.execute(text("SELECT 1"))
+    return {"status": "ready", "database": "ok"}
 
 
 def set_auth_cookies(response: Response, user_id: int, db: Session) -> TokenResponse:

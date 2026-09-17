@@ -1,0 +1,7 @@
+node_modules
+.next
+.git
+backend/.venv
+backend/__pycache__
+backend/crappo.db
+*.log

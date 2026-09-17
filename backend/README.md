@@ -22,6 +22,7 @@ For production, copy `.env.example` to `.env`, set a long random `JWT_SECRET_KEY
 ## Endpoints
 
 - GET /health
+- GET /health/ready
 - POST /auth/register
 - POST /auth/login
 - POST /auth/refresh
@@ -35,6 +36,9 @@ For production, copy `.env.example` to `.env`, set a long random `JWT_SECRET_KEY
 - GET /portfolio
 - POST /portfolio/holdings
 - POST /portfolio/transactions
+- GET /watchlist
+- POST /watchlist
+- DELETE /watchlist/{coin_id}
 
 ## Notes
 

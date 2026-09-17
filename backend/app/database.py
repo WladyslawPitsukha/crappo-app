@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from .config import settings
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./crappo.db"
+SQLALCHEMY_DATABASE_URL = settings.database_url
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
