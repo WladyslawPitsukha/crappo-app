@@ -4,23 +4,23 @@ This file contains only work that is still outstanding after the authentication,
 
 ## Architecture And State
 
-- [ ] Split dashboard business logic from UI components.
+- [x] Split dashboard business logic from UI components.
 - [x] Move asset configuration and static display data into dedicated data modules.
-- [ ] Create reusable auth, portfolio, market, and chart data hooks.
+- [x] Create reusable auth, portfolio, market, and chart data hooks.
 - [x] Centralize chart configuration and historical-data transformation.
-- [ ] Separate portfolio fetching and mutation state from presentation state.
-- [ ] Add shared dashboard components for portfolio overview, watchlist, trades, charts, and activity.
+- [x] Separate portfolio fetching and mutation state from presentation state.
+- [x] Add shared dashboard components for portfolio overview, watchlist, trades, charts, and activity.
 
 ## Performance And Accessibility
 
-- [ ] Lazy-load chart-heavy dashboard sections.
-- [ ] Reduce unnecessary dashboard re-renders and protect expensive calculations.
-- [ ] Add reduced-motion support.
-- [ ] Audit keyboard navigation and focus states.
-- [ ] Audit color contrast and semantic form validation.
-- [ ] Improve mobile layouts and table-like data presentation.
-- [ ] Run a Lighthouse and bundle-performance pass.
-- [ ] Add error boundaries and graceful loading/error fallbacks.
+- [x] Lazy-load chart-heavy dashboard sections.
+- [x] Reduce unnecessary dashboard re-renders and protect expensive calculations.
+- [x] Add reduced-motion support.
+- [x] Audit keyboard navigation and focus states.
+- [x] Audit color contrast and semantic form validation.
+- [x] Improve mobile layouts and table-like data presentation.
+- [x] Run a Lighthouse and bundle-performance pass.
+- [x] Add error boundaries and graceful loading/error fallbacks.
 
 ## Production And Operations
 
