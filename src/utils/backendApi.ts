@@ -31,6 +31,11 @@ export type BackendPortfolio = {
     }>;
 };
 
+export type MarketInsights = {
+    movers: Array<{ symbol: string; name: string; change: number }>;
+    news: Array<{ title: string; source: string; sentiment: string }>;
+};
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${path}`, {
         ...options,
@@ -112,4 +117,20 @@ export async function upsertBackendHolding(
         method: "POST",
         body: JSON.stringify(payload),
     });
+}
+
+export async function getBackendWatchlist(): Promise<string[]> {
+    return (await request<{ coin_ids: string[] }>("/watchlist")).coin_ids;
+}
+
+export async function addBackendWatchlistItem(coinId: string): Promise<string[]> {
+    return (await request<{ coin_ids: string[] }>("/watchlist", { method: "POST", body: JSON.stringify({ coin_id: coinId }) })).coin_ids;
+}
+
+export async function removeBackendWatchlistItem(coinId: string): Promise<string[]> {
+    return (await request<{ coin_ids: string[] }>(`/watchlist/${coinId}`, { method: "DELETE" })).coin_ids;
+}
+
+export async function getMarketInsights(): Promise<MarketInsights> {
+    return request<MarketInsights>("/market/insights");
 }

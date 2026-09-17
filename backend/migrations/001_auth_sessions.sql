@@ -20,3 +20,12 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 CREATE INDEX IF NOT EXISTS ix_user_sessions_user_id ON user_sessions (user_id);
 CREATE INDEX IF NOT EXISTS ix_user_sessions_token_id ON user_sessions (token_id);
+
+CREATE TABLE IF NOT EXISTS watchlist_items (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    coin_id VARCHAR(50) NOT NULL,
+    created_at DATETIME NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ix_watchlist_user_coin ON watchlist_items (user_id, coin_id);

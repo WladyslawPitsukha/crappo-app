@@ -16,8 +16,8 @@ from .auth import ALGORITHM, SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TO
 from .config import settings
 from .database import Base, engine, get_db
 from .mailer import send_email
-from .models import PortfolioHolding, PortfolioTransaction, User, UserSession
-from .schemas import MarketCoin, MarketResponse, PasswordResetConfirm, PasswordResetRequest, PortfolioEntry, PortfolioHoldingRequest, PortfolioResponse, PortfolioTransactionRequest, PortfolioTransactionResponse, TokenResponse, UserLoginRequest, UserProfile, UserRegisterRequest
+from .models import PortfolioHolding, PortfolioTransaction, User, UserSession, WatchlistItem
+from .schemas import MarketCoin, MarketResponse, PasswordResetConfirm, PasswordResetRequest, PortfolioEntry, PortfolioHoldingRequest, PortfolioResponse, PortfolioTransactionRequest, PortfolioTransactionResponse, TokenResponse, UserLoginRequest, UserProfile, UserRegisterRequest, WatchlistItemRequest, WatchlistResponse
 
 Base.metadata.create_all(bind=engine)
 
@@ -184,6 +184,46 @@ def get_market_history(coin_id: str, days: int = 7) -> dict[str, list[list[float
     except (OSError, URLError) as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Market provider unavailable") from exc
     return {"prices": data.get("prices", [])}
+
+
+@app.get("/watchlist", response_model=WatchlistResponse)
+def get_watchlist(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> WatchlistResponse:
+    items = db.query(WatchlistItem).filter(WatchlistItem.user_id == current_user.id).order_by(WatchlistItem.created_at.asc()).all()
+    return WatchlistResponse(coin_ids=[item.coin_id for item in items])
+
+
+@app.post("/watchlist", response_model=WatchlistResponse)
+def add_watchlist_item(payload: WatchlistItemRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> WatchlistResponse:
+    coin_id = payload.coin_id.lower()
+    existing = db.query(WatchlistItem).filter(WatchlistItem.user_id == current_user.id, WatchlistItem.coin_id == coin_id).first()
+    if existing is None:
+        db.add(WatchlistItem(user_id=current_user.id, coin_id=coin_id))
+        db.commit()
+    return get_watchlist(current_user, db)
+
+
+@app.delete("/watchlist/{coin_id}", response_model=WatchlistResponse)
+def remove_watchlist_item(coin_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> WatchlistResponse:
+    item = db.query(WatchlistItem).filter(WatchlistItem.user_id == current_user.id, WatchlistItem.coin_id == coin_id.lower()).first()
+    if item:
+        db.delete(item)
+        db.commit()
+    return get_watchlist(current_user, db)
+
+
+@app.get("/market/insights")
+def get_market_insights() -> dict[str, list[dict[str, str | float]]]:
+    return {
+        "movers": [
+            {"symbol": "BTC", "name": "Bitcoin", "change": 3.4},
+            {"symbol": "ETH", "name": "Ethereum", "change": 1.8},
+            {"symbol": "LTC", "name": "Litecoin", "change": 0.18},
+        ],
+        "news": [
+            {"title": "Crypto markets remain active as volume rises", "source": "Crappo Markets", "sentiment": "positive"},
+            {"title": "Investors watch liquidity and macro signals", "source": "Market Brief", "sentiment": "neutral"},
+        ],
+    }
 
 
 @app.get("/portfolio", response_model=PortfolioResponse)

@@ -91,3 +91,11 @@ class UserProfile(BaseModel):
     email: str
     is_verified: bool = False
     role: str = "user"
+
+
+class WatchlistItemRequest(BaseModel):
+    coin_id: str = Field(min_length=2, max_length=50)
+
+
+class WatchlistResponse(BaseModel):
+    coin_ids: list[str]
