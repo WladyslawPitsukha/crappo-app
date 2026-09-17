@@ -1,15 +1,23 @@
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime, timedelta, timezone
+import json
+from secrets import token_urlsafe
+from urllib.error import URLError
+from urllib.request import urlopen
+from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, status
+import jwt
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from .auth import create_access_token, get_current_user, get_password_hash, verify_password
+from .auth import ALGORITHM, SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS, create_access_token, get_current_user, get_password_hash, verify_password
+from .config import settings
 from .database import Base, engine, get_db
-from .models import PortfolioHolding, PortfolioTransaction, User
-from .schemas import MarketCoin, MarketResponse, PortfolioEntry, PortfolioResponse, PortfolioTransactionResponse, TokenResponse, UserLoginRequest, UserProfile, UserRegisterRequest
+from .mailer import send_email
+from .models import PortfolioHolding, PortfolioTransaction, User, UserSession
+from .schemas import MarketCoin, MarketResponse, PasswordResetConfirm, PasswordResetRequest, PortfolioEntry, PortfolioHoldingRequest, PortfolioResponse, PortfolioTransactionRequest, PortfolioTransactionResponse, TokenResponse, UserLoginRequest, UserProfile, UserRegisterRequest
 
 Base.metadata.create_all(bind=engine)
 
@@ -17,7 +25,8 @@ app = FastAPI(title="Crappo API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -28,43 +37,153 @@ def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def set_auth_cookies(response: Response, user_id: int, db: Session) -> TokenResponse:
+    access_id = uuid4().hex
+    refresh_id = uuid4().hex
+    access_token = create_access_token(user_id, "access", access_id)
+    refresh_token = create_access_token(user_id, "refresh", refresh_id)
+    now = datetime.utcnow()
+    db.add_all([
+        UserSession(user_id=user_id, token_id=access_id, token_type="access", expires_at=now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)),
+        UserSession(user_id=user_id, token_id=refresh_id, token_type="refresh", expires_at=now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)),
+    ])
+    db.commit()
+    cookie_options = {"httponly": True, "secure": settings.cookie_secure, "samesite": "lax", "domain": settings.cookie_domain}
+    response.set_cookie("crappo_access", access_token, max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, **cookie_options)
+    response.set_cookie("crappo_refresh", refresh_token, max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60, **cookie_options)
+    return TokenResponse(access_token=access_token, token_type="bearer")
+
+
 @app.post("/auth/register", response_model=TokenResponse)
-def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def register_user(payload: UserRegisterRequest, response: Response, db: Session = Depends(get_db)) -> TokenResponse:
     existing_user = db.query(User).filter(User.email == payload.email.lower()).first()
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
 
-    user = User(email=payload.email.lower(), password_hash=get_password_hash(payload.password))
+    user = User(email=payload.email.lower(), password_hash=get_password_hash(payload.password), verification_token=token_urlsafe(32))
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    return TokenResponse(access_token=create_access_token(user.id), token_type="bearer")
+    send_email(payload.email, "Verify your Crappo account", f"Verify your account: {settings.frontend_url}/verify/{user.verification_token}")
+    return set_auth_cookies(response, user.id, db)
 
 
 @app.post("/auth/login", response_model=TokenResponse)
-def login_user(payload: UserLoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login_user(payload: UserLoginRequest, response: Response, db: Session = Depends(get_db)) -> TokenResponse:
     user = db.query(User).filter(User.email == payload.email.lower()).first()
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
 
-    return TokenResponse(access_token=create_access_token(user.id), token_type="bearer")
+    return set_auth_cookies(response, user.id, db)
+
+
+@app.post("/auth/refresh", response_model=TokenResponse)
+def refresh_session(response: Response, refresh_token: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> TokenResponse:
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh session missing")
+    try:
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise ValueError("Invalid token type")
+        user_id = int(payload["sub"])
+    except (jwt.PyJWTError, KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh session") from exc
+    session = db.query(UserSession).filter(UserSession.token_id == payload.get("jti")).first()
+    if session is None or session.revoked_at is not None or session.expires_at < datetime.utcnow() or db.query(User).filter(User.id == user_id).first() is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    session.revoked_at = datetime.utcnow()
+    db.commit()
+    return set_auth_cookies(response, user_id, db)
+
+
+@app.post("/auth/logout")
+def logout(response: Response, access_token: str | None = Cookie(default=None), refresh_token: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> dict[str, str]:
+    for token in (access_token, refresh_token):
+        if token:
+            try:
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+                session = db.query(UserSession).filter(UserSession.token_id == payload.get("jti")).first()
+                if session:
+                    session.revoked_at = datetime.utcnow()
+            except jwt.PyJWTError:
+                pass
+    db.commit()
+    response.delete_cookie("crappo_access")
+    response.delete_cookie("crappo_refresh")
+    return {"status": "ok"}
+
+
+@app.get("/auth/verify/{token}")
+def verify_email(token: str, db: Session = Depends(get_db)) -> dict[str, str]:
+    user = db.query(User).filter(User.verification_token == token).first()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification token")
+    user.is_verified = True
+    user.verification_token = None
+    db.commit()
+    return {"status": "verified"}
+
+
+@app.post("/auth/password-reset/request")
+def request_password_reset(payload: PasswordResetRequest, db: Session = Depends(get_db)) -> dict[str, str]:
+    user = db.query(User).filter(User.email == payload.email.lower()).first()
+    if user:
+        user.reset_token = token_urlsafe(32)
+        user.reset_token_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=30)
+        db.commit()
+        send_email(payload.email, "Reset your Crappo password", f"Reset your password: {settings.frontend_url}/reset-password/{user.reset_token}")
+    return {"message": "If the account exists, password reset instructions have been sent."}
+
+
+@app.post("/auth/password-reset/confirm")
+def confirm_password_reset(payload: PasswordResetConfirm, db: Session = Depends(get_db)) -> dict[str, str]:
+    user = db.query(User).filter(User.reset_token == payload.token).first()
+    if user is None or user.reset_token_expires_at is None or user.reset_token_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+    user.password_hash = get_password_hash(payload.password)
+    user.reset_token = None
+    user.reset_token_expires_at = None
+    db.commit()
+    return {"status": "password-updated"}
 
 
 @app.get("/auth/profile", response_model=UserProfile)
 def get_user_profile(current_user: User = Depends(get_current_user)) -> UserProfile:
-    return UserProfile(id=current_user.id, email=current_user.email)
+    return UserProfile(id=current_user.id, email=current_user.email, is_verified=current_user.is_verified, role=current_user.role)
 
 
 @app.get("/market", response_model=MarketResponse)
 def get_market() -> MarketResponse:
-    mock_data = [
-        {"symbol": "BTC", "name": "Bitcoin", "price": 77191.0, "change_24h": 3.4, "volume_24h": 16800000000},
-        {"symbol": "ETH", "name": "Ethereum", "price": 2522.51, "change_24h": 1.8, "volume_24h": 9120000000},
-        {"symbol": "LTC", "name": "Litecoin", "price": 53.66, "change_24h": 0.18, "volume_24h": 154760000},
-        {"symbol": "SOL", "name": "Solana", "price": 161.2, "change_24h": -0.8, "volume_24h": 2130000000},
-    ]
-    return MarketResponse(coins=[MarketCoin(**coin) for coin in mock_data])
+    url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,litecoin&price_change_percentage=24h"
+    try:
+        with urlopen(url, timeout=8) as response:
+            upstream_data = json.load(response)
+    except (OSError, URLError) as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Market provider unavailable") from exc
+
+    names = {"bitcoin": "Bitcoin", "ethereum": "Ethereum", "litecoin": "Litecoin"}
+    coins = [MarketCoin(
+        symbol=item["symbol"].upper(),
+        name=names[item["id"]],
+        price=item["current_price"],
+        change_24h=item.get("price_change_percentage_24h") or 0,
+        volume_24h=item.get("total_volume") or 0,
+    ) for item in upstream_data if item["id"] in names]
+    return MarketResponse(coins=coins)
+
+
+@app.get("/market/history/{coin_id}")
+def get_market_history(coin_id: str, days: int = 7) -> dict[str, list[list[float]]]:
+    if coin_id not in {"bitcoin", "ethereum", "litecoin"} or days not in {1, 7, 30, 365}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported coin or range")
+    url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days={days}"
+    try:
+        with urlopen(url, timeout=8) as response:
+            data = json.load(response)
+    except (OSError, URLError) as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Market provider unavailable") from exc
+    return {"prices": data.get("prices", [])}
 
 
 @app.get("/portfolio", response_model=PortfolioResponse)
@@ -106,15 +225,15 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
 
 @app.post("/portfolio/holdings", response_model=PortfolioEntry)
 def upsert_holding(
-    payload: dict[str, Any],
+    payload: PortfolioHoldingRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PortfolioEntry:
-    symbol = str(payload["symbol"]).upper()
-    name = str(payload.get("name", symbol))
-    quantity = float(payload["quantity"])
-    average_cost = float(payload["average_cost"])
-    replace_holding = bool(payload.get("replace", False))
+    symbol = payload.symbol.upper()
+    name = payload.name
+    quantity = payload.quantity
+    average_cost = payload.average_cost
+    replace_holding = payload.replace
 
     holding = (
         db.query(PortfolioHolding)
@@ -157,18 +276,19 @@ def upsert_holding(
 
 @app.post("/portfolio/transactions", response_model=PortfolioTransactionResponse)
 def create_transaction(
-    payload: dict[str, Any],
+    payload: PortfolioTransactionRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PortfolioTransactionResponse:
-    symbol = str(payload["symbol"]).upper()
-    tx_type = str(payload["type"]).lower()
-    quantity = float(payload["quantity"])
-    price_per_coin = float(payload["price_per_coin"])
-    total_value = float(payload["total_value"])
+    symbol = payload.symbol.upper()
+    tx_type = payload.type
+    quantity = payload.quantity
+    price_per_coin = payload.price_per_coin
+    total_value = payload.total_value
 
-    if tx_type not in {"buy", "sell"}:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Type must be buy or sell")
+    holding = db.query(PortfolioHolding).filter(PortfolioHolding.user_id == current_user.id, PortfolioHolding.symbol == symbol).first()
+    if tx_type == "sell" and (holding is None or holding.quantity < quantity):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient holdings")
 
     tx = PortfolioTransaction(
         user_id=current_user.id,
