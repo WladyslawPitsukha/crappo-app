@@ -14,6 +14,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "lighthouse": "npm run build && npx --yes @lhci/cli autorun",
+    "bundle:report": "npm run build",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
