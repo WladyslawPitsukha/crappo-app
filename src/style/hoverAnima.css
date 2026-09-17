@@ -68,10 +68,6 @@ h4:hover {
 .hoverButton:hover h6 {
   color: rgb(54, 113, 233);
 }
-
-.criptoHoverBut {
-  transition: width 0.3s ease;
-}
 .criptoHoverBut a {
   text-align: none;
 }
@@ -94,4 +90,4 @@ h4:hover {
 .criptoHoverBut:hover a span {
   display: block;
   opacity: 1;
-}/*# sourceMappingURL=hoverAnima.css.map */
+}

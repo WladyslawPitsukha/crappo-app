@@ -60,6 +60,15 @@ export function useDashboard(userEmail: string | undefined, marketData: Record<A
         return { totalVolume, averageTrade: transactions.length > 0 ? totalVolume / transactions.length : 0, buyCount: transactions.filter((transaction) => transaction.type === "buy").length, sellCount: transactions.filter((transaction) => transaction.type === "sell").length, activeAssets: new Set(transactions.map((transaction) => transaction.symbol)).size };
     }, [transactions]);
     const recentActivity = useMemo(() => transactions.slice(0, 4).map((transaction) => ({ type: transaction.type, coin: transaction.symbol, value: `${transaction.type === "buy" ? "+" : "-"}${transaction.quantity} ${transaction.symbol}`, time: new Date(transaction.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) })), [transactions]);
+    const recommendations = useMemo(() => {
+        const leader = [...portfolioAssets].sort((a, b) => b.allocation - a.allocation)[0];
+        const strongestMover = [...portfolioAssets].sort((a, b) => b.change - a.change)[0];
+        const items: string[] = [];
+        if (leader?.allocation > 70) items.push(`Consider diversifying beyond ${leader.symbol}; it represents ${leader.allocation.toFixed(0)}% of your portfolio.`);
+        if (strongestMover && strongestMover.change > 0) items.push(`${strongestMover.symbol} is your strongest current mover at +${strongestMover.change.toFixed(2)}%.`);
+        if (transactions.length === 0) items.push("Add your first position to start tracking portfolio performance.");
+        return items;
+    }, [portfolioAssets, transactions.length]);
 
     const handleWatchlistToggle = useCallback(async (assetId: AssetId) => {
         const asset = assetConfig.find((item) => item.id === assetId);
@@ -88,5 +97,5 @@ export function useDashboard(userEmail: string | undefined, marketData: Record<A
         setPendingTrade(null);
     }, [pendingTrade, recordTrade]);
 
-    return { holdings, transactions, watchlist, watchlistAssets, searchableAssets, watchlistMessage, watchlistSearch, setWatchlistSearch, handleWatchlistToggle, portfolioAssets, portfolioValue, investedValue, portfolioPnl: portfolioValue - investedValue, recentActivity, transactionAnalytics, pendingTrade, setPendingTrade, selectedTransaction, setSelectedTransaction, tradeType, setTradeType, selectedAssetId, setSelectedAssetId, tradeQuantity, setTradeQuantity, tradeError, handleTrade, confirmTrade };
+    return { holdings, transactions, watchlist, watchlistAssets, searchableAssets, watchlistMessage, watchlistSearch, setWatchlistSearch, handleWatchlistToggle, portfolioAssets, portfolioValue, investedValue, portfolioPnl: portfolioValue - investedValue, recentActivity, transactionAnalytics, recommendations, pendingTrade, setPendingTrade, selectedTransaction, setSelectedTransaction, tradeType, setTradeType, selectedAssetId, setSelectedAssetId, tradeQuantity, setTradeQuantity, tradeError, handleTrade, confirmTrade };
 }

@@ -36,6 +36,9 @@ export default function MarketActivityChart({ coinName }: MarketActivityChartPro
         chart.setOption({
             title: { text: `${range} ${coinName} Price History` },
             tooltip: { trigger: "axis" },
+            axisPointer: { link: [{ xAxisIndex: "all" }] },
+            dataZoom: [{ type: "inside", start: 0, end: 100 }, { type: "slider", height: 18, bottom: 4 }],
+            toolbox: { feature: { restore: {}, saveAsImage: {} } },
             xAxis: { type: "category", data: points.map(([label]) => label) },
             yAxis: { type: "value", name: "USD" },
             series: [{ name: `${coinName} price`, type: "line", smooth: true, data: points.map(([, price]) => price) }],

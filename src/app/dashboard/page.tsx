@@ -8,6 +8,7 @@ import { useMarketData } from "@/hooks/useMarketData";
 import { useDashboard } from "@/hooks/useDashboard";
 import PortfolioOverview from "@/components/dashboard/PortfolioOverview";
 import Watchlist from "@/components/dashboard/Watchlist";
+import { usePriceAlerts } from "@/hooks/usePriceAlerts";
 
 type DashboardTab = "Overview" | "Performance" | "Portfolio";
 
@@ -31,8 +32,11 @@ export default function DashboardPage() {
     const userEmail = user?.email;
     const [activeTab, setActiveTab] = useState<DashboardTab>("Overview");
     const [requestNumber, setRequestNumber] = useState(0);
-    const { marketData, marketError, isMarketLoading, marketInsights } = useMarketData(Boolean(isReady && userEmail), requestNumber);
+    const [alertAssetId, setAlertAssetId] = useState<"bitcoin" | "ethereum" | "litecoin">("bitcoin");
+    const [alertTarget, setAlertTarget] = useState("");
+    const { marketData, marketError, isMarketLoading, marketInsights, lastUpdated } = useMarketData(Boolean(isReady && userEmail), requestNumber);
     const dashboard = useDashboard(userEmail, marketData);
+    const { activeAlerts, notification, setNotification, addAlert } = usePriceAlerts(userEmail, marketData);
 
     useEffect(() => {
         if (isReady && !user) {
@@ -41,7 +45,7 @@ export default function DashboardPage() {
     }, [isReady, router, user]);
 
     const totalVolume = useMemo(() => marketData ? Object.values(marketData).reduce((sum, asset) => sum + asset.volume24h, 0) : 0, [marketData]);
-    const { portfolioAssets, portfolioValue, investedValue, portfolioPnl, transactions, watchlist, watchlistAssets, searchableAssets, watchlistMessage, watchlistSearch, setWatchlistSearch, handleWatchlistToggle, transactionAnalytics, recentActivity, pendingTrade, setPendingTrade, selectedTransaction, setSelectedTransaction, tradeType, setTradeType, selectedAssetId, setSelectedAssetId, tradeQuantity, setTradeQuantity, tradeError, handleTrade, confirmTrade } = dashboard;
+    const { portfolioAssets, portfolioValue, investedValue, portfolioPnl, transactions, watchlist, watchlistAssets, searchableAssets, watchlistMessage, watchlistSearch, setWatchlistSearch, handleWatchlistToggle, transactionAnalytics, recommendations, recentActivity, pendingTrade, setPendingTrade, selectedTransaction, setSelectedTransaction, tradeType, setTradeType, selectedAssetId, setSelectedAssetId, tradeQuantity, setTradeQuantity, tradeError, handleTrade, confirmTrade } = dashboard;
 
     if (!isReady || !user) {
         return <main className="p-8 text-white">Loading...</main>;
@@ -53,6 +57,7 @@ export default function DashboardPage() {
                 <div>
                     <p className="text-sm text-gray-300">Signed in as {user.email}</p>
                     <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Your dashboard</h1>
+                    {lastUpdated && <p className="mt-2 text-xs text-gray-400">Market updated {new Date(lastUpdated).toLocaleTimeString()}</p>}
                 </div>
                 <div className="flex items-center gap-3">
                     <Link
@@ -186,6 +191,12 @@ export default function DashboardPage() {
                                 leader={[...portfolioAssets].sort((a, b) => b.allocation - a.allocation)[0]?.symbol ?? "-"}
                                 value={portfolioValue}
                             />
+                            <div className="rounded-3xl border border-white/10 bg-slate-950/30 p-5 lg:col-span-2">
+                                <h3 className="text-lg font-semibold">Portfolio recommendations</h3>
+                                <div className="mt-4 space-y-2 text-sm text-gray-200">
+                                    {recommendations.length > 0 ? recommendations.map((recommendation) => <p className="rounded-2xl bg-white/5 p-3" key={recommendation}>{recommendation}</p>) : <p className="text-gray-400">Your portfolio is balanced for the current data.</p>}
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -303,6 +314,18 @@ export default function DashboardPage() {
                                 </article>
                             ))}
                         </div>
+                    </div>
+
+                    <div className="rounded-[30px] border border-white/10 bg-white/5 p-5">
+                        <div className="flex items-center justify-between"><h3 className="text-lg font-semibold">Price alerts</h3><span className="text-xs text-gray-400">{activeAlerts.length} active</span></div>
+                        <div className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-2">
+                            <select aria-label="Alert asset" className="rounded-xl border border-white/10 bg-slate-950/60 px-2 py-2 text-sm text-white" onChange={(event) => setAlertAssetId(event.target.value as typeof alertAssetId)} value={alertAssetId}>
+                                {portfolioAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.symbol}</option>)}
+                            </select>
+                            <input aria-label="Alert target price" className="min-w-0 rounded-xl border border-white/10 bg-slate-950/60 px-2 py-2 text-sm text-white" min="0" onChange={(event) => setAlertTarget(event.target.value)} placeholder="Target price" type="number" value={alertTarget} />
+                            <button className="rounded-xl bg-blue-600 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cyan-300" onClick={() => { addAlert(alertAssetId, Number(alertTarget), "above"); setAlertTarget(""); }} type="button">Set</button>
+                        </div>
+                        {notification && <p className="mt-3 rounded-xl bg-emerald-500/15 p-3 text-sm text-emerald-200" role="status">{notification} <button className="ml-2 underline" onClick={() => setNotification(null)} type="button">Dismiss</button></p>}
                     </div>
 
                     <div className="rounded-[30px] border border-white/10 bg-gradient-to-br from-violet-500/20 to-blue-500/10 p-5">
