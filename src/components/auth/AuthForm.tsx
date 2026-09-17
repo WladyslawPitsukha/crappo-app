@@ -82,6 +82,11 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
                         {isRegister ? "Register" : "Login"}
                     </button>
                 </form>
+                {!isRegister && (
+                    <p className="mt-4 text-sm text-slate-600">
+                        <Link className="font-medium text-blue-700 underline" href="/forgot-password">Forgot your password?</Link>
+                    </p>
+                )}
                 <p className="mt-6 text-sm text-slate-600">
                     {isRegister ? "Already have an account?" : "Need an account?"}{" "}
                     <Link className="font-medium text-blue-700 underline" href={isRegister ? "/login" : "/register"}>

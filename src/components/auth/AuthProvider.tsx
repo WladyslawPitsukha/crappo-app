@@ -2,14 +2,10 @@
 
 import React from "react";
 import { createContext, useContext, useEffect, useState } from "react";
-import { loginWithBackend, registerWithBackend } from "@/utils/backendApi";
+import { getBackendProfile, loginWithBackend, logoutFromBackend, refreshBackendSession, registerWithBackend } from "@/utils/backendApi";
 
 type User = {
     email: string;
-};
-
-type StoredUser = User & {
-    password: string;
 };
 
 type AuthContextValue = {
@@ -21,99 +17,56 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const USERS_KEY = "crappo-demo-users";
-const SESSION_KEY = "crappo-demo-session";
-const TOKEN_KEY = "crappo-access-token";
-const DEMO_USER = { email: "user@example.com", password: "password123" };
-
-function getStoredUsers(): StoredUser[] {
-    const storedUsers = localStorage.getItem(USERS_KEY);
-
-    if (!storedUsers) {
-        return [DEMO_USER];
-    }
-
-    try {
-        return JSON.parse(storedUsers) as StoredUser[];
-    } catch {
-        return [];
-    }
-}
-
 export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
     const [user, setUser] = useState<User | null>(null);
     const [isReady, setIsReady] = useState(false);
 
     useEffect(() => {
-        const storedSession = localStorage.getItem(SESSION_KEY);
-
-        if (storedSession) {
+        const restoreSession = async () => {
             try {
-                setUser(JSON.parse(storedSession) as User);
+                let profile;
+                try {
+                    profile = await getBackendProfile();
+                } catch {
+                    await refreshBackendSession();
+                    profile = await getBackendProfile();
+                }
+                setUser({ email: profile.email });
             } catch {
-                localStorage.removeItem(SESSION_KEY);
+                setUser(null);
+            } finally {
+                setIsReady(true);
             }
-        }
+        };
 
-        setIsReady(true);
+        void restoreSession();
     }, []);
-
-    const createSession = (email: string) => {
-        const nextUser = { email };
-        localStorage.setItem(SESSION_KEY, JSON.stringify(nextUser));
-        setUser(nextUser);
-    };
 
     const login = async (email: string, password: string) => {
         const normalizedEmail = email.toLowerCase();
 
         try {
-            const response = await loginWithBackend(normalizedEmail, password);
-            localStorage.setItem(TOKEN_KEY, response.access_token);
-            createSession(normalizedEmail);
+            await loginWithBackend(normalizedEmail, password);
+            setUser({ email: normalizedEmail });
             return null;
         } catch {
-            // Keep the demo account usable while the local API is not running.
-        }
-
-        const matchingUser = getStoredUsers().find(
-            (storedUser) => storedUser.email === normalizedEmail && storedUser.password === password,
-        );
-
-        if (!matchingUser) {
             return "Incorrect email or password.";
         }
-
-        createSession(matchingUser.email);
-        return null;
     };
 
     const register = async (email: string, password: string) => {
         const normalizedEmail = email.toLowerCase();
-        const users = getStoredUsers();
-
         try {
-            const response = await registerWithBackend(normalizedEmail, password);
-            localStorage.setItem(TOKEN_KEY, response.access_token);
-            createSession(normalizedEmail);
+            await registerWithBackend(normalizedEmail, password);
+            setUser({ email: normalizedEmail });
             return null;
-        } catch {
-            // Keep local registration available for frontend-only development.
+        } catch (error) {
+            return error instanceof Error ? error.message : "Unable to create your account.";
         }
-
-        if (users.some((storedUser) => storedUser.email === normalizedEmail)) {
-            return "An account with this email already exists.";
-        }
-
-        const nextUsers = [...users.filter((storedUser) => storedUser.email !== DEMO_USER.email), { email: normalizedEmail, password }];
-        localStorage.setItem(USERS_KEY, JSON.stringify(nextUsers));
-        createSession(normalizedEmail);
-        return null;
     };
 
     const logout = () => {
-        localStorage.removeItem(SESSION_KEY);
-        localStorage.removeItem(TOKEN_KEY);
+        void logoutFromBackend().catch(() => undefined);
         setUser(null);
     };
 

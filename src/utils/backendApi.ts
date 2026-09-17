@@ -1,8 +1,14 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type TokenResponse = {
-    access_token: string;
     token_type: string;
+};
+
+export type BackendUser = {
+    id: number;
+    email: string;
+    is_verified: boolean;
+    role: string;
 };
 
 export type BackendPortfolio = {
@@ -28,6 +34,7 @@ export type BackendPortfolio = {
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${path}`, {
         ...options,
+        credentials: "include",
         headers: {
             "Content-Type": "application/json",
             ...options?.headers,
@@ -55,30 +62,54 @@ export async function loginWithBackend(email: string, password: string): Promise
     });
 }
 
-export async function getBackendPortfolio(token: string): Promise<BackendPortfolio> {
-    return request<BackendPortfolio>("/portfolio", {
-        headers: { Authorization: `Bearer ${token}` },
+export async function getBackendProfile(): Promise<BackendUser> {
+    return request<BackendUser>("/auth/profile");
+}
+
+export async function refreshBackendSession(): Promise<TokenResponse> {
+    return request<TokenResponse>("/auth/refresh", { method: "POST" });
+}
+
+export async function logoutFromBackend(): Promise<void> {
+    await request<{ status: string }>("/auth/logout", { method: "POST" });
+}
+
+export async function requestPasswordReset(email: string): Promise<{ message: string }> {
+    return request<{ message: string }>("/auth/password-reset/request", {
+        method: "POST",
+        body: JSON.stringify({ email }),
     });
 }
 
+export async function confirmPasswordReset(token: string, password: string): Promise<void> {
+    await request<{ status: string }>("/auth/password-reset/confirm", {
+        method: "POST",
+        body: JSON.stringify({ token, password }),
+    });
+}
+
+export async function verifyEmail(token: string): Promise<void> {
+    await request<{ status: string }>(`/auth/verify/${encodeURIComponent(token)}`);
+}
+
+export async function getBackendPortfolio(): Promise<BackendPortfolio> {
+    return request<BackendPortfolio>("/portfolio");
+}
+
 export async function createBackendTrade(
-    token: string,
     payload: { symbol: string; type: "buy" | "sell"; quantity: number; price_per_coin: number; total_value: number },
 ) {
     return request("/portfolio/transactions", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
     });
 }
 
 export async function upsertBackendHolding(
-    token: string,
     payload: { symbol: string; name: string; quantity: number; average_cost: number; replace?: boolean },
 ) {
     return request("/portfolio/holdings", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
     });
 }

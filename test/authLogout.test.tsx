@@ -1,7 +1,13 @@
 import React from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+vi.mock("@/utils/backendApi", () => ({
+    getBackendProfile: vi.fn().mockResolvedValue({ email: "user@example.com" }),
+    refreshBackendSession: vi.fn(),
+    logoutFromBackend: vi.fn().mockResolvedValue(undefined),
+}));
 import { AuthProvider, useAuth } from "@/components/auth/AuthProvider";
 
 function AuthState() {
@@ -22,7 +28,6 @@ function AuthState() {
 describe("logout behavior", () => {
     beforeEach(() => {
         localStorage.clear();
-        localStorage.setItem("crappo-demo-session", JSON.stringify({ email: "user@example.com" }));
     });
 
     afterEach(() => {
@@ -42,7 +47,6 @@ describe("logout behavior", () => {
         await user.click(screen.getByRole("button", { name: "Logout" }));
 
         expect(screen.getByText("Signed out")).toBeInTheDocument();
-        expect(localStorage.getItem("crappo-demo-session")).toBeNull();
         expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
     });
 });
